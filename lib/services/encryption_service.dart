@@ -1,0 +1,110 @@
+import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:encrypt/encrypt.dart' as encrypt;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:pointycastle/export.dart';
+
+/// Сервис сквозного шифрования (E2E).
+/// Использует AES-256-CBC для шифрования сообщений и файлов.
+class EncryptionService {
+  static const _storageKey = 'black_square_encryption_key';
+  static const _keyLength = 32; // 256 bits for AES-256
+  static const _ivLength = 16;
+
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  encrypt.Encrypter? _encrypter;
+
+  /// Инициализация: загрузка или генерация ключа шифрования
+  Future<void> initialize() async {
+    String? keyBase64 = await _secureStorage.read(key: _storageKey);
+
+    if (keyBase64 == null) {
+      final key = _generateKey();
+      await _secureStorage.write(
+        key: _storageKey,
+        value: base64Encode(key),
+      );
+      keyBase64 = base64Encode(key);
+    }
+
+    final keyBytes = base64Decode(keyBase64);
+    _encrypter = encrypt.Encrypter(
+      encrypt.AES(encrypt.Key(Uint8List.fromList(keyBytes))),
+    );
+  }
+
+  Uint8List _generateKey() {
+    final secureRandom = FortunaRandom();
+    final seedSource = Random.secure();
+    final seeds = <int>[];
+    for (int i = 0; i < 32; i++) {
+      seeds.add(seedSource.nextInt(256));
+    }
+    secureRandom.seed(KeyParameter(Uint8List.fromList(seeds)));
+    return secureRandom.nextBytes(_keyLength);
+  }
+
+  /// Шифрование текста
+  String encryptText(String plainText) {
+    _ensureInitialized();
+    final iv = encrypt.IV.fromLength(_ivLength);
+    final encrypted = _encrypter!.encrypt(plainText, iv: iv);
+    return '${base64Encode(iv.bytes)}:${encrypted.base64}';
+  }
+
+  /// Дешифрование текста
+  String decryptText(String encryptedData) {
+    _ensureInitialized();
+    final parts = encryptedData.split(':');
+    if (parts.length != 2) {
+      throw EncryptionException('Invalid encrypted data format');
+    }
+    final iv = encrypt.IV(base64Decode(parts[0]));
+    final encrypted = encrypt.Encrypted.fromBase64(parts[1]);
+    return _encrypter!.decrypt(encrypted, iv: iv);
+  }
+
+  /// Шифрование байтов (для файлов)
+  Uint8List encryptBytes(Uint8List data) {
+    _ensureInitialized();
+    final iv = encrypt.IV.fromLength(_ivLength);
+    final encrypted = _encrypter!.encryptBytes(data, iv: iv);
+    return Uint8List.fromList([...iv.bytes, ...encrypted.bytes]);
+  }
+
+  /// Дешифрование байтов
+  Uint8List decryptBytes(Uint8List encryptedData) {
+    _ensureInitialized();
+    if (encryptedData.length < _ivLength) {
+      throw EncryptionException('Encrypted data too short');
+    }
+    final iv = encrypt.IV(encryptedData.sublist(0, _ivLength));
+    final cipherBytes = encryptedData.sublist(_ivLength);
+    final encrypted = encrypt.Encrypted(Uint8List.fromList(cipherBytes));
+    return Uint8List.fromList(_encrypter!.decryptBytes(encrypted, iv: iv));
+  }
+
+  void _ensureInitialized() {
+    if (_encrypter == null) {
+      throw EncryptionException(
+        'EncryptionService not initialized. Call initialize() first.',
+      );
+    }
+  }
+
+  /// Проверка инициализации
+  bool get isInitialized => _encrypter != null;
+}
+
+class EncryptionException implements Exception {
+  final String message;
+  EncryptionException(this.message);
+
+  @override
+  String toString() => 'EncryptionException: $message';
+}

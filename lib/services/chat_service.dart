@@ -493,14 +493,19 @@ class ChatService {
     return message;
   }
 
-  /// Расшифровать и получить файл
+  /// Расшифровать и получить файл (с кэшем, чтобы не расшифровывать повторно)
   Future<File> getDecryptedFile(String encryptedPath) async {
+    final cacheDir = await getApplicationCacheDirectory();
+    final cacheSubdir = Directory('${cacheDir.path}/black_square_decrypted');
+    if (!await cacheSubdir.exists()) await cacheSubdir.create(recursive: true);
+    final cacheKey = encryptedPath.split(RegExp(r'[/\\]')).last;
+    final cachedFile = File('${cacheSubdir.path}/$cacheKey');
+    if (await cachedFile.exists()) return cachedFile;
+
     final encrypted = await File(encryptedPath).readAsBytes();
     final decrypted = _encryption.decryptBytes(encrypted);
-    final tempDir = await getTemporaryDirectory();
-    final tempFile = File('${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}');
-    await tempFile.writeAsBytes(decrypted);
-    return tempFile;
+    await cachedFile.writeAsBytes(decrypted);
+    return cachedFile;
   }
 
   Future<void> _saveMessage(Message message) async {

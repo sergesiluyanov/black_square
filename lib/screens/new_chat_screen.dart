@@ -10,22 +10,35 @@ class NewChatScreen extends StatefulWidget {
 }
 
 class _NewChatScreenState extends State<NewChatScreen> {
-  final _controller = TextEditingController();
+  final _nameController = TextEditingController();
+  final _recipientIdController = TextEditingController();
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _controller.dispose();
+    _nameController.dispose();
+    _recipientIdController.dispose();
     super.dispose();
   }
 
   Future<void> _createChat() async {
-    final name = _controller.text.trim();
+    final name = _nameController.text.trim();
     if (name.isEmpty) return;
+
+    final recipientId = _recipientIdController.text.trim();
+    if (recipientId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Введите ID пользователя для облачного чата'),
+          backgroundColor: Color(0xFF333333),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
-      final chat = await context.read<ChatService>().createChat(name);
+      final chat = await context.read<ChatService>().createChat(name, recipientId: recipientId);
       if (mounted) Navigator.pop(context, chat);
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -48,19 +61,55 @@ class _NewChatScreenState extends State<NewChatScreen> {
           style: TextStyle(color: Colors.white, fontSize: 18),
         ),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Text(
+              'Ваш ID (поделитесь с собеседником):',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                context.read<ChatService>().userId,
+                style: const TextStyle(color: Color(0xFF6B8AFF), fontSize: 12, fontFamily: 'monospace'),
+              ),
+            ),
+            const SizedBox(height: 24),
             TextField(
-              controller: _controller,
-              autofocus: true,
+              controller: _nameController,
               style: const TextStyle(color: Colors.white, fontSize: 18),
               decoration: InputDecoration(
                 labelText: 'Имя контакта',
                 labelStyle: const TextStyle(color: Colors.white54),
                 hintText: 'Введите имя',
+                hintStyle: const TextStyle(color: Colors.white24),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF333333)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF6B8AFF), width: 2),
+                ),
+              ),
+              onSubmitted: (_) => _createChat(),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _recipientIdController,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+              decoration: InputDecoration(
+                labelText: 'ID пользователя *',
+                labelStyle: const TextStyle(color: Colors.white54),
+                hintText: 'UUID собеседника',
                 hintStyle: const TextStyle(color: Colors.white24),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),

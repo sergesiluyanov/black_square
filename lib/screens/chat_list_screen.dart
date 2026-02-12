@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:black_square/models/chat.dart';
 import 'package:black_square/screens/chat_screen.dart';
 import 'package:black_square/screens/new_chat_screen.dart';
@@ -14,11 +16,21 @@ class ChatListScreen extends StatefulWidget {
 
 class _ChatListScreenState extends State<ChatListScreen> {
   late Future<List<Chat>> _chatsFuture;
+  StreamSubscription? _chatsSubscription;
 
   @override
   void initState() {
     super.initState();
     _refreshChats();
+    _chatsSubscription = context.read<ChatService>().chatsUpdated.listen((_) {
+      if (mounted) _refreshChats();
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatsSubscription?.cancel();
+    super.dispose();
   }
 
   void _refreshChats() {

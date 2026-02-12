@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:black_square/models/chat.dart';
@@ -21,15 +22,23 @@ class _ChatScreenState extends State<ChatScreen> {
   final _scrollController = ScrollController();
   List<Message> _messages = [];
   bool _isLoading = true;
+  StreamSubscription<Message>? _messageSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
+    _messageSubscription = context.read<ChatService>().incomingMessages.listen((msg) {
+      if (msg.chatId == widget.chat.id && mounted) {
+        setState(() => _messages = [..._messages, msg]);
+        _scrollToBottom();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _messageSubscription?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();

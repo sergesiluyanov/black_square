@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:black_square/config.dart';
 import 'package:black_square/models/chat.dart';
 import 'package:black_square/models/message.dart';
 import 'package:black_square/services/encryption_service.dart';
 import 'package:black_square/services/storage_service.dart';
+import 'package:black_square/services/websocket_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -12,6 +15,7 @@ import 'package:uuid/uuid.dart';
 class ChatService {
   final EncryptionService _encryption = EncryptionService();
   final StorageService _storage = StorageService();
+  final WebSocketService _ws = WebSocketService();
   final _uuid = const Uuid();
 
   static const _messagesKey = 'messages';
@@ -20,14 +24,101 @@ class ChatService {
 
   String? _userId;
 
+  String get userId => _userId ?? '';
+
+  final _incomingMessageController = StreamController<Message>.broadcast();
+  final _chatsUpdatedController = StreamController<void>.broadcast();
+
+  WebSocketService get ws => _ws;
+  Stream<Message> get incomingMessages => _incomingMessageController.stream;
+  Stream<void> get chatsUpdated => _chatsUpdatedController.stream;
+
   Future<void> initialize() async {
     await _encryption.initialize();
     await _storage.initialize();
     _userId ??= await _storage.getString(_userIdKey) ?? _uuid.v4();
     await _storage.setString(_userIdKey, _userId!);
+
+    _ws.onMessage = _handleIncomingMessage;
+    try {
+      await _ws.connect(Config.serverUrl, _userId!);
+    } catch (_) {}
   }
 
-  String get userId => _userId ?? '';
+  void _handleIncomingMessage(Map<String, dynamic> msg) {
+    if (msg['type'] != 'message') return;
+    final from = msg['from'] as String?;
+    final chatId = msg['chatId'] as String?;
+    final payload = msg['payload'];
+    final timestamp = msg['timestamp'] as String?;
+    if (from == null || payload == null) return;
+
+    Map<String, dynamic>? messageJson;
+    if (payload is String) {
+      try {
+        messageJson = jsonDecode(payload) as Map<String, dynamic>;
+      } catch (_) {
+        return;
+      }
+    } else if (payload is Map<String, dynamic>) {
+      messageJson = payload;
+    } else {
+      return;
+    }
+
+    final content = messageJson['content'] as String? ?? '';
+    _saveIncomingMessage(
+      from: from,
+      chatId: chatId ?? from,
+      content: content,
+      timestamp: timestamp != null ? DateTime.tryParse(timestamp) : null,
+    );
+  }
+
+  Future<void> _saveIncomingMessage({
+    required String from,
+    required String chatId,
+    required String content,
+    DateTime? timestamp,
+  }) async {
+    final chats = await getChats();
+    Chat? chat;
+    for (final c in chats) {
+      if (c.recipientId == from) {
+        chat = c;
+        break;
+      }
+    }
+
+    if (chat == null) {
+      chat = Chat(
+        id: _uuid.v4(),
+        name: from,
+        recipientId: from,
+        lastMessageAt: timestamp ?? DateTime.now(),
+      );
+      await _saveChat(chat);
+      _chatsUpdatedController.add(null);
+    }
+
+    final message = Message(
+      id: _uuid.v4(),
+      chatId: chat.id,
+      senderId: from,
+      content: content,
+      timestamp: timestamp ?? DateTime.now(),
+      type: MessageType.text,
+      isFromMe: false,
+    );
+    await _saveMessage(message);
+
+    await _saveChat(chat.copyWith(
+      lastMessageAt: message.timestamp,
+      lastMessagePreview: content.length > 50 ? '${content.substring(0, 50)}...' : content,
+    ));
+
+    _incomingMessageController.add(message);
+  }
 
   /// Получить все чаты
   Future<List<Chat>> getChats() async {
@@ -44,10 +135,11 @@ class ChatService {
   }
 
   /// Создать новый чат
-  Future<Chat> createChat(String name) async {
+  Future<Chat> createChat(String name, {String? recipientId}) async {
     final chat = Chat(
       id: _uuid.v4(),
       name: name,
+      recipientId: recipientId,
       lastMessageAt: DateTime.now(),
     );
     await _saveChat(chat);
@@ -98,6 +190,14 @@ class ChatService {
       lastMessageAt: message.timestamp,
       lastMessagePreview: content.length > 50 ? '${content.substring(0, 50)}...' : content,
     ));
+
+    if (_ws.isConnected && chat.recipientId != null) {
+      _ws.sendMessage(
+        to: chat.recipientId!,
+        chatId: chatId,
+        payload: jsonEncode(message.toJson()),
+      );
+    }
 
     return message;
   }

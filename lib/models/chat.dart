@@ -2,6 +2,7 @@
 class Chat {
   final String id;
   final String name;
+  final String? recipientId;
   final String? avatarPath;
   final DateTime lastMessageAt;
   final String? lastMessagePreview;
@@ -9,6 +10,7 @@ class Chat {
   const Chat({
     required this.id,
     required this.name,
+    this.recipientId,
     this.avatarPath,
     required this.lastMessageAt,
     this.lastMessagePreview,
@@ -18,6 +20,7 @@ class Chat {
     return Chat(
       id: json['id'] as String,
       name: json['name'] as String,
+      recipientId: json['recipientId'] as String?,
       avatarPath: json['avatarPath'] as String?,
       lastMessageAt: DateTime.parse(json['lastMessageAt'] as String),
       lastMessagePreview: json['lastMessagePreview'] as String?,
@@ -28,6 +31,7 @@ class Chat {
     return {
       'id': id,
       'name': name,
+      'recipientId': recipientId,
       'avatarPath': avatarPath,
       'lastMessageAt': lastMessageAt.toIso8601String(),
       'lastMessagePreview': lastMessagePreview,
@@ -37,6 +41,7 @@ class Chat {
   Chat copyWith({
     String? id,
     String? name,
+    String? recipientId,
     String? avatarPath,
     DateTime? lastMessageAt,
     String? lastMessagePreview,
@@ -44,6 +49,7 @@ class Chat {
     return Chat(
       id: id ?? this.id,
       name: name ?? this.name,
+      recipientId: recipientId ?? this.recipientId,
       avatarPath: avatarPath ?? this.avatarPath,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,

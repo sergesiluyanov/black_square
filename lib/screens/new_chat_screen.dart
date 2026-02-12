@@ -1,6 +1,9 @@
+import 'package:black_square/models/chat.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class NewChatScreen extends StatefulWidget {
   const NewChatScreen({super.key});
@@ -29,7 +32,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     if (recipientId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Введите ID пользователя для облачного чата'),
+          content: Text('Отсканируйте QR-код собеседника или введите ID'),
           backgroundColor: Color(0xFF333333),
         ),
       );
@@ -42,6 +45,19 @@ class _NewChatScreenState extends State<NewChatScreen> {
       if (mounted) Navigator.pop(context, chat);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _onScanned(String id) {
+    if (id.isNotEmpty) {
+      _recipientIdController.text = id;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ID получен. Введите имя и нажмите «Создать чат»'),
+          backgroundColor: Color(0xFF1A5F1A),
+        ),
+      );
     }
   }
 
@@ -67,19 +83,49 @@ class _NewChatScreenState extends State<NewChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Ваш ID (поделитесь с собеседником):',
+              'Ваш ID — покажите QR собеседнику:',
               style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
             ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                borderRadius: BorderRadius.circular(8),
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: QrImageView(
+                  data: context.read<ChatService>().userId,
+                  version: QrVersions.auto,
+                  size: 200,
+                  backgroundColor: Colors.white,
+                ),
               ),
-              child: SelectableText(
-                context.read<ChatService>().userId,
-                style: const TextStyle(color: Color(0xFF6B8AFF), fontSize: 12, fontFamily: 'monospace'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'или скопируйте: ${context.read<ChatService>().userId}',
+              style: const TextStyle(color: Color(0xFF6B8AFF), fontSize: 11, fontFamily: 'monospace'),
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (ctx) => _QrScanScreen(onScanned: _onScanned),
+                ),
+              ),
+              icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF6B8AFF)),
+              label: const Text(
+                'Сканировать QR собеседника',
+                style: TextStyle(color: Color(0xFF6B8AFF)),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: const BorderSide(color: Color(0xFF6B8AFF)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
             const SizedBox(height: 24),
@@ -107,7 +153,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
               controller: _recipientIdController,
               style: const TextStyle(color: Colors.white, fontSize: 18),
               decoration: InputDecoration(
-                labelText: 'ID пользователя *',
+                labelText: 'ID пользователя (или отсканируйте)',
                 labelStyle: const TextStyle(color: Colors.white54),
                 hintText: 'UUID собеседника',
                 hintStyle: const TextStyle(color: Colors.white24),
@@ -141,6 +187,83 @@ class _NewChatScreenState extends State<NewChatScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _QrScanScreen extends StatefulWidget {
+  final void Function(String id) onScanned;
+
+  const _QrScanScreen({required this.onScanned});
+
+  @override
+  State<_QrScanScreen> createState() => _QrScanScreenState();
+}
+
+class _QrScanScreenState extends State<_QrScanScreen> {
+  bool _scanned = false;
+  final _controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.normal,
+    facing: CameraFacing.back,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_scanned) return;
+    final barcodes = capture.barcodes;
+    for (final barcode in barcodes) {
+      final raw = barcode.rawValue;
+      if (raw != null && raw.isNotEmpty) {
+        _scanned = true;
+        widget.onScanned(raw);
+        return;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: const Text('Сканировать QR', style: TextStyle(color: Colors.white)),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Stack(
+        children: [
+          MobileScanner(
+            onDetect: _onDetect,
+            controller: _controller,
+          ),
+          Center(
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white54, width: 2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(bottom: 40),
+            alignment: Alignment.bottomCenter,
+            child: Text(
+              'Наведите камеру на QR-код собеседника',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14),
+            ),
+          ),
+        ],
       ),
     );
   }

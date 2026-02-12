@@ -62,6 +62,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ],
         ),
         actions: [
+          Builder(
+            builder: (context) {
+              final isConnected = context.read<ChatService>().ws.isConnected;
+              return IconButton(
+                icon: Icon(
+                  isConnected ? Icons.wifi : Icons.wifi_off,
+                  color: isConnected ? const Color(0xFF4CAF50) : Colors.white54,
+                  size: 22,
+                ),
+                onPressed: () => _showConnectionStatus(context),
+                tooltip: isConnected ? 'Подключено' : 'Нет подключения',
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.lock, color: Colors.white54, size: 22),
             onPressed: () => _showEncryptionInfo(context),
@@ -124,6 +138,42 @@ class _ChatListScreenState extends State<ChatListScreen> {
         builder: (_) => ChatScreen(chat: chat),
       ),
     ).then((_) => _refreshChats());
+  }
+
+  void _showConnectionStatus(BuildContext context) {
+    final isConnected = context.read<ChatService>().ws.isConnected;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Row(
+          children: [
+            Icon(
+              isConnected ? Icons.wifi : Icons.wifi_off,
+              color: isConnected ? const Color(0xFF4CAF50) : Colors.red,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              isConnected ? 'Подключено' : 'Нет подключения',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        content: Text(
+          isConnected
+              ? 'Сервер доступен. Сообщения и файлы отправляются через облако.'
+              : 'Проверьте интернет и что сервер запущен. Сообщения сохраняются локально.',
+          style: const TextStyle(color: Colors.white70, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK', style: TextStyle(color: Color(0xFF6B8AFF))),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showEncryptionInfo(BuildContext context) {

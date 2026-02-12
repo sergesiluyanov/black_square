@@ -499,40 +499,27 @@ class _VideoPreview extends StatefulWidget {
 }
 
 class _VideoPreviewState extends State<_VideoPreview> {
-  VideoPlayerController? _controller;
-  File? _decryptedFile;
+  File? _thumbnail;
+  bool _thumbnailChecked = false;
 
   @override
   void initState() {
     super.initState();
-    _loadVideo();
+    _loadThumbnail();
   }
 
-  Future<void> _loadVideo() async {
-    try {
-      final file = await widget.chatService.getDecryptedFile(widget.message.filePath!);
-      if (!mounted) return;
-      setState(() {
-        _decryptedFile = file;
-        _controller = VideoPlayerController.file(file)
-          ..initialize().then((_) {
-            if (mounted) setState(() {});
-          });
-      });
-    } catch (_) {
-      if (mounted) setState(() {});
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
+  Future<void> _loadThumbnail() async {
+    final thumb = await widget.chatService.getVideoThumbnail(widget.message.filePath!);
+    if (!mounted) return;
+    setState(() {
+      _thumbnail = thumb;
+      _thumbnailChecked = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_controller == null || !_controller!.value.isInitialized) {
+    if (!_thumbnailChecked) {
       return const SizedBox(
         width: 200,
         height: 120,
@@ -548,9 +535,6 @@ class _VideoPreviewState extends State<_VideoPreview> {
         ),
       );
     }
-    final size = _controller!.value.size;
-    final w = size.width > 0 ? size.width : 16.0;
-    final h = size.height > 0 ? size.height : 9.0;
     return GestureDetector(
       onTap: () => _showFullscreenVideo(),
       child: Stack(
@@ -561,14 +545,17 @@ class _VideoPreviewState extends State<_VideoPreview> {
             child: SizedBox(
               width: 200,
               height: 120,
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: w,
-                  height: h,
-                  child: VideoPlayer(_controller!),
-                ),
-              ),
+              child: _thumbnail != null
+                  ? Image.file(
+                      _thumbnail!,
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      color: Colors.black26,
+                      child: const Center(
+                        child: Icon(Icons.videocam, color: Colors.white38, size: 48),
+                      ),
+                    ),
             ),
           ),
           Container(
@@ -588,14 +575,23 @@ class _VideoPreviewState extends State<_VideoPreview> {
     );
   }
 
-  void _showFullscreenVideo() {
-    if (_decryptedFile == null) return;
+  void _showFullscreenVideo() async {
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (ctx) => _FullscreenVideoPage(file: _decryptedFile!),
-      ),
-    );
+    try {
+      final file = await widget.chatService.getDecryptedFile(widget.message.filePath!);
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => _FullscreenVideoPage(file: file),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка загрузки видео'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }
 

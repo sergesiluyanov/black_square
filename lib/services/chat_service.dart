@@ -12,9 +12,16 @@ import 'package:black_square/services/storage_service.dart';
 import 'package:black_square/services/websocket_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 
 /// Макс. размер файла ~100 MB
 const _maxFileSizeBytes = 100 * 1024 * 1024;
+
+bool _isVideoFile(String? fileName) {
+  if (fileName == null) return false;
+  final ext = fileName.toLowerCase().split('.').last;
+  return ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
+}
 
 /// Расшифровка в изоляте — не блокирует UI
 Uint8List _decryptFileInIsolate(List<Object> args) {
@@ -275,9 +282,29 @@ class ChatService {
       final appDir = await getApplicationDocumentsDirectory();
       final filesDir = Directory('${appDir.path}/black_square_files');
       if (!await filesDir.exists()) await filesDir.create(recursive: true);
-      final filePath = '${filesDir.path}/${_uuid.v4()}';
+      final cacheKey = _uuid.v4();
+      final filePath = '${filesDir.path}/$cacheKey';
       final encrypted = _encryption.encryptBytes(decrypted);
       await File(filePath).writeAsBytes(encrypted);
+
+      // Генерация миниатюры для видео (как в Telegram) — превью грузится мгновенно
+      if (_isVideoFile(fileName)) {
+        try {
+          final cacheDir = await getApplicationCacheDirectory();
+          final thumbDir = Directory('${cacheDir.path}/black_square_thumbs');
+          if (!await thumbDir.exists()) await thumbDir.create(recursive: true);
+          final decryptedPath = '${(await getTemporaryDirectory()).path}/$cacheKey';
+          await File(decryptedPath).writeAsBytes(decrypted);
+          await VideoThumbnail.thumbnailFile(
+            video: decryptedPath,
+            thumbnailPath: '${thumbDir.path}/$cacheKey.jpg',
+            imageFormat: ImageFormat.JPEG,
+            maxWidth: 320,
+            quality: 60,
+          );
+          await File(decryptedPath).delete();
+        } catch (_) {}
+      }
 
       final updatedMessage = Message(
         id: messageId,
@@ -435,6 +462,22 @@ class ChatService {
     final encrypted = _encryption.encryptBytes(fileBytes);
     await File(encryptedPath).writeAsBytes(encrypted);
 
+    if (_isVideoFile(fileName)) {
+      try {
+        final cacheDir = await getApplicationCacheDirectory();
+        final thumbDir = Directory('${cacheDir.path}/black_square_thumbs');
+        if (!await thumbDir.exists()) await thumbDir.create(recursive: true);
+        final cacheKey = encryptedPath.split(RegExp(r'[/\\]')).last;
+        await VideoThumbnail.thumbnailFile(
+          video: file.path,
+          thumbnailPath: '${thumbDir.path}/$cacheKey.jpg',
+          imageFormat: ImageFormat.JPEG,
+          maxWidth: 320,
+          quality: 60,
+        );
+      } catch (_) {}
+    }
+
     final message = Message(
       id: _uuid.v4(),
       chatId: chatId,
@@ -491,6 +534,15 @@ class ChatService {
     }
 
     return message;
+  }
+
+  /// Путь к миниатюре видео (если есть) — мгновенная загрузка без расшифровки
+  Future<File?> getVideoThumbnail(String encryptedPath) async {
+    final cacheKey = encryptedPath.split(RegExp(r'[/\\]')).last;
+    final cacheDir = await getApplicationCacheDirectory();
+    final thumbFile = File('${cacheDir.path}/black_square_thumbs/$cacheKey.jpg');
+    if (await thumbFile.exists()) return thumbFile;
+    return null;
   }
 
   /// Расшифровать и получить файл (с кэшем, чтобы не расшифровывать повторно)

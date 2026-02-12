@@ -107,16 +107,26 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
 
-    final message = await chatService.sendFile(widget.chat.id, file);
-    if (!mounted) return;
-    setState(() => _messages = [..._messages, message]);
-    _scrollToBottom();
-    scaffoldMessenger.showSnackBar(
-      const SnackBar(
-        content: Text('Файл отправлен'),
-        backgroundColor: Color(0xFF1A5F1A),
-      ),
-    );
+    try {
+      final message = await chatService.sendFile(widget.chat.id, file);
+      if (!mounted) return;
+      setState(() => _messages = [..._messages, message]);
+      _scrollToBottom();
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Файл отправлен'),
+          backgroundColor: Color(0xFF1A5F1A),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Ошибка: ${e.toString().replaceAll('Exception:', '').trim()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _openFile(Message message) async {

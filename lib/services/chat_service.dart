@@ -13,6 +13,31 @@ import 'package:black_square/services/websocket_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+/// Макс. размер файла ~100 MB
+const _maxFileSizeBytes = 100 * 1024 * 1024;
+
+/// Расшифровка в изоляте — не блокирует UI
+Uint8List _decryptFileInIsolate(List<Object> args) {
+  final fileData = args[0] as String;
+  final shareCode = args[1] as String;
+  return EncryptionService.decryptBytesWithShareCode(
+    Uint8List.fromList(base64Decode(fileData)),
+    shareCode,
+  );
+}
+
+/// Чтение файла в изоляте
+Uint8List _readFileInIsolate(List<Object> args) {
+  return File(args[0] as String).readAsBytesSync();
+}
+
+/// Шифрование в изоляте — не блокирует UI
+Uint8List _encryptFileInIsolate(List<Object> args) {
+  final fileBytes = args[0] as Uint8List;
+  final shareCode = args[1] as String;
+  return EncryptionService.encryptBytesWithShareCode(fileBytes, shareCode);
+}
+
 /// Сервис чатов с E2E шифрованием
 class ChatService {
   final EncryptionService _encryption = EncryptionService();
@@ -240,13 +265,16 @@ class ChatService {
     required DateTime timestamp,
   }) async {
     try {
+      final estimatedSize = (fileData.length * 3) ~/ 4;
+      if (estimatedSize > _maxFileSizeBytes) {
+        if (kDebugMode) debugPrint('ChatService: file too large ($estimatedSize bytes)');
+        return;
+      }
+      final decrypted = await compute(_decryptFileInIsolate, [fileData, shareCode]);
+
       final appDir = await getApplicationDocumentsDirectory();
       final filesDir = Directory('${appDir.path}/black_square_files');
       if (!await filesDir.exists()) await filesDir.create(recursive: true);
-      final decrypted = EncryptionService.decryptBytesWithShareCode(
-        Uint8List.fromList(base64Decode(fileData)),
-        shareCode,
-      );
       final filePath = '${filesDir.path}/${_uuid.v4()}';
       final encrypted = _encryption.encryptBytes(decrypted);
       await File(filePath).writeAsBytes(encrypted);
@@ -393,6 +421,9 @@ class ChatService {
 
   /// Отправить файл
   Future<Message> sendFile(String chatId, File file) async {
+    if (file.lengthSync() > _maxFileSizeBytes) {
+      throw Exception('Файл слишком большой (макс. 100 MB)');
+    }
     final appDir = await getApplicationDocumentsDirectory();
     final filesDir = Directory('${appDir.path}/black_square_files');
     if (!await filesDir.exists()) await filesDir.create(recursive: true);
@@ -400,7 +431,7 @@ class ChatService {
     final fileName = file.path.split(RegExp(r'[/\\]')).last;
     final encryptedPath = '${filesDir.path}/${_uuid.v4()}';
 
-    final fileBytes = await file.readAsBytes();
+    final fileBytes = await compute(_readFileInIsolate, [file.path]);
     final encrypted = _encryption.encryptBytes(fileBytes);
     await File(encryptedPath).writeAsBytes(encrypted);
 
@@ -426,7 +457,7 @@ class ChatService {
     ));
 
     if (_ws.isConnected && chat.recipientId != null && chat.shareCode != null) {
-      final encryptedFile = EncryptionService.encryptBytesWithShareCode(fileBytes, chat.shareCode!);
+      final encryptedFile = await compute(_encryptFileInIsolate, [fileBytes, chat.shareCode!]);
       final fileData = base64Encode(encryptedFile);
 
       final messages = await getMessages(chatId);

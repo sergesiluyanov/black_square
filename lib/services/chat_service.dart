@@ -16,6 +16,22 @@ import 'package:video_thumbnail/video_thumbnail.dart';
 
 /// Макс. размер файла ~100 MB
 const _maxFileSizeBytes = 100 * 1024 * 1024;
+const _maxSizeForThumbnail = 30 * 1024 * 1024; // 30 MB — большие видео без миниатюры
+
+/// Очередь генерации миниатюр — по одной, чтобы не нагружать MediaCodec
+Future<void> _thumbQueueNext = Future.value();
+
+Future<void> _generateThumbnailQueued(Future<void> Function() fn) async {
+  final prev = _thumbQueueNext;
+  final completer = Completer<void>();
+  _thumbQueueNext = completer.future;
+  await prev;
+  try {
+    await fn();
+  } finally {
+    completer.complete();
+  }
+}
 
 bool _isVideoFile(String? fileName) {
   if (fileName == null) return false;
@@ -287,25 +303,6 @@ class ChatService {
       final encrypted = _encryption.encryptBytes(decrypted);
       await File(filePath).writeAsBytes(encrypted);
 
-      // Генерация миниатюры для видео (как в Telegram) — превью грузится мгновенно
-      if (_isVideoFile(fileName)) {
-        try {
-          final cacheDir = await getApplicationCacheDirectory();
-          final thumbDir = Directory('${cacheDir.path}/black_square_thumbs');
-          if (!await thumbDir.exists()) await thumbDir.create(recursive: true);
-          final decryptedPath = '${(await getTemporaryDirectory()).path}/$cacheKey';
-          await File(decryptedPath).writeAsBytes(decrypted);
-          await VideoThumbnail.thumbnailFile(
-            video: decryptedPath,
-            thumbnailPath: '${thumbDir.path}/$cacheKey.jpg',
-            imageFormat: ImageFormat.JPEG,
-            maxWidth: 320,
-            quality: 60,
-          );
-          await File(decryptedPath).delete();
-        } catch (_) {}
-      }
-
       final updatedMessage = Message(
         id: messageId,
         chatId: chatId,
@@ -320,6 +317,32 @@ class ChatService {
       );
       await _updateMessageInStorage(updatedMessage);
       _messageUpdatedController.add(updatedMessage);
+
+      // Миниатюра — в фоне, с задержкой, в очереди (не блокируем UI)
+      if (_isVideoFile(fileName) && estimatedSize < _maxSizeForThumbnail) {
+        final decryptedPath = '${(await getTemporaryDirectory()).path}/$cacheKey';
+        await File(decryptedPath).writeAsBytes(decrypted);
+        Future.delayed(const Duration(milliseconds: 800), () {
+          _generateThumbnailQueued(() async {
+            try {
+              final cacheDir = await getApplicationCacheDirectory();
+              final thumbDir = Directory('${cacheDir.path}/black_square_thumbs');
+              if (!await thumbDir.exists()) await thumbDir.create(recursive: true);
+              if (await File(decryptedPath).exists()) {
+                await VideoThumbnail.thumbnailFile(
+                  video: decryptedPath,
+                  thumbnailPath: '${thumbDir.path}/$cacheKey.jpg',
+                  imageFormat: ImageFormat.JPEG,
+                  maxWidth: 200,
+                  quality: 50,
+                );
+                await File(decryptedPath).delete();
+                _messageUpdatedController.add(updatedMessage);
+              }
+            } catch (_) {}
+          });
+        });
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('ChatService: failed to save file: $e');
     }
@@ -462,22 +485,6 @@ class ChatService {
     final encrypted = _encryption.encryptBytes(fileBytes);
     await File(encryptedPath).writeAsBytes(encrypted);
 
-    if (_isVideoFile(fileName)) {
-      try {
-        final cacheDir = await getApplicationCacheDirectory();
-        final thumbDir = Directory('${cacheDir.path}/black_square_thumbs');
-        if (!await thumbDir.exists()) await thumbDir.create(recursive: true);
-        final cacheKey = encryptedPath.split(RegExp(r'[/\\]')).last;
-        await VideoThumbnail.thumbnailFile(
-          video: file.path,
-          thumbnailPath: '${thumbDir.path}/$cacheKey.jpg',
-          imageFormat: ImageFormat.JPEG,
-          maxWidth: 320,
-          quality: 60,
-        );
-      } catch (_) {}
-    }
-
     final message = Message(
       id: _uuid.v4(),
       chatId: chatId,
@@ -531,6 +538,26 @@ class ChatService {
         chatId: chatId,
         payload: payload,
       );
+    }
+
+    if (_isVideoFile(fileName) && file.lengthSync() < _maxSizeForThumbnail) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _generateThumbnailQueued(() async {
+          try {
+            final cacheDir = await getApplicationCacheDirectory();
+            final thumbDir = Directory('${cacheDir.path}/black_square_thumbs');
+            if (!await thumbDir.exists()) await thumbDir.create(recursive: true);
+            final cacheKey = encryptedPath.split(RegExp(r'[/\\]')).last;
+            await VideoThumbnail.thumbnailFile(
+              video: file.path,
+              thumbnailPath: '${thumbDir.path}/$cacheKey.jpg',
+              imageFormat: ImageFormat.JPEG,
+              maxWidth: 200,
+              quality: 50,
+            );
+          } catch (_) {}
+        });
+      });
     }
 
     return message;

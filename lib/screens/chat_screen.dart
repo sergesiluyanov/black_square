@@ -548,6 +548,9 @@ class _VideoPreviewState extends State<_VideoPreview> {
         ),
       );
     }
+    final size = _controller!.value.size;
+    final w = size.width > 0 ? size.width : 16.0;
+    final h = size.height > 0 ? size.height : 9.0;
     return GestureDetector(
       onTap: () => _showFullscreenVideo(),
       child: Stack(
@@ -558,7 +561,14 @@ class _VideoPreviewState extends State<_VideoPreview> {
             child: SizedBox(
               width: 200,
               height: 120,
-              child: VideoPlayer(_controller!),
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: w,
+                  height: h,
+                  child: VideoPlayer(_controller!),
+                ),
+              ),
             ),
           ),
           Container(

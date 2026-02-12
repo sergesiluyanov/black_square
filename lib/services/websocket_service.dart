@@ -8,6 +8,10 @@ class WebSocketService {
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   bool _isConnected = false;
+  String? _url;
+  String? _userId;
+  Timer? _reconnectTimer;
+  bool _disconnectRequested = false;
 
   /// Callback при получении сообщения от сервера
   void Function(Map<String, dynamic> message)? onMessage;
@@ -16,15 +20,28 @@ class WebSocketService {
 
   /// Подключение к серверу
   Future<void> connect(String url, String userId) async {
-    if (_isConnected) return;
+    _url = url;
+    _userId = userId;
+    _disconnectRequested = false;
+    await _doConnect();
+  }
+
+  Future<void> _doConnect() async {
+    if (_disconnectRequested) return;
+
+    await _subscription?.cancel();
+    await _channel?.sink.close();
+    _channel = null;
+    _subscription = null;
+    _isConnected = false;
 
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(url));
+      _channel = WebSocketChannel.connect(Uri.parse(_url!));
       _isConnected = true;
 
       _channel!.sink.add(jsonEncode({
         'type': 'auth',
-        'userId': userId,
+        'userId': _userId!,
       }));
 
       _subscription = _channel!.stream.listen(
@@ -36,16 +53,27 @@ class WebSocketService {
         },
         onError: (e) {
           _isConnected = false;
+          _scheduleReconnect();
         },
         onDone: () {
           _isConnected = false;
+          _scheduleReconnect();
         },
         cancelOnError: false,
       );
     } catch (e) {
       _isConnected = false;
+      _scheduleReconnect();
       rethrow;
     }
+  }
+
+  void _scheduleReconnect() {
+    if (_disconnectRequested || _url == null || _userId == null) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(const Duration(seconds: 3), () {
+      _doConnect();
+    });
   }
 
   /// Отправка сообщения получателю
@@ -66,6 +94,9 @@ class WebSocketService {
 
   /// Отключение
   Future<void> disconnect() async {
+    _disconnectRequested = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     await _subscription?.cancel();
     await _channel?.sink.close();
     _channel = null;

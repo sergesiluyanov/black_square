@@ -3,12 +3,20 @@ import { createServer } from 'http';
 
 const PORT = process.env.PORT || 8080;
 
-// userId -> WebSocket
+// userId -> Set<WebSocket> (разные устройства одного юзера НЕ отключают друг друга)
 const clients = new Map();
 const pendingMessages = new Map();
 
+function getClientSet(userId) {
+  let set = clients.get(userId);
+  if (!set) {
+    set = new Set();
+    clients.set(userId, set);
+  }
+  return set;
+}
+
 const server = createServer((req, res) => {
-  // Health check для Railway/Render
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', service: 'black-square-server' }));
@@ -18,9 +26,17 @@ const server = createServer((req, res) => {
   res.end();
 });
 
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({
+  server,
+  clientTracking: true,
+});
 
-wss.on('connection', (ws) => {
+// Ping каждые 30 сек — сохраняет соединения живыми
+const PING_INTERVAL = 30000;
+const connections = new Map(); // ws -> { userId, pingTimer }
+
+wss.on('connection', (ws, req) => {
+  const connId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   let userId = null;
 
   ws.on('message', (data) => {
@@ -31,14 +47,22 @@ wss.on('connection', (ws) => {
         case 'auth':
           userId = msg.userId;
           if (userId) {
-            clients.set(userId, ws);
-            console.log(`[${new Date().toISOString()}] User connected: ${userId}`);
+            getClientSet(userId).add(ws);
+            console.log(`[${new Date().toISOString()}] Connect: ${userId} (conn: ${connId}, total users: ${clients.size})`);
 
             const pending = pendingMessages.get(userId) || [];
             for (const m of pending) {
               ws.send(JSON.stringify(m));
             }
             pendingMessages.delete(userId);
+
+            // Ping для поддержания соединения (предотвращает таймаут)
+            const timer = setInterval(() => {
+              if (ws.readyState === 1) {
+                ws.ping();
+              }
+            }, PING_INTERVAL);
+            connections.set(ws, { userId, timer });
           }
           break;
 
@@ -52,9 +76,12 @@ wss.on('connection', (ws) => {
             timestamp: new Date().toISOString(),
           };
 
-          const recipient = clients.get(to);
-          if (recipient && recipient.readyState === 1) {
-            recipient.send(JSON.stringify(envelope));
+          const recipientSet = clients.get(to);
+          const connected = recipientSet ? [...recipientSet].filter(w => w.readyState === 1) : [];
+          if (connected.length > 0) {
+            for (const w of connected) {
+              w.send(JSON.stringify(envelope));
+            }
           } else {
             const queue = pendingMessages.get(to) || [];
             queue.push(envelope);
@@ -72,14 +99,23 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    const conn = connections.get(ws);
+    if (conn) {
+      clearInterval(conn.timer);
+      connections.delete(ws);
+    }
     if (userId) {
-      clients.delete(userId);
-      console.log(`[${new Date().toISOString()}] User disconnected: ${userId}`);
+      const set = clients.get(userId);
+      if (set) {
+        set.delete(ws);
+        if (set.size === 0) clients.delete(userId);
+        console.log(`[${new Date().toISOString()}] Disconnect: ${userId} (conn: ${connId}, devices left: ${set.size})`);
+      }
     }
   });
 
   ws.on('error', (err) => {
-    console.error('WebSocket error:', err.message);
+    console.error(`[${connId}] WebSocket error:`, err.message);
   });
 });
 

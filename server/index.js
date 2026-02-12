@@ -29,6 +29,7 @@ const server = createServer((req, res) => {
 const wss = new WebSocketServer({
   server,
   clientTracking: true,
+  maxPayload: 100 * 1024 * 1024, // 100 MB для видео и больших файлов
 });
 
 // Ping каждые 30 сек — сохраняет соединения живыми

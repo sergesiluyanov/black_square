@@ -61,12 +61,15 @@ class ChatService {
     final timestamp = msg['timestamp'] as String?;
     if (from == null || payload == null) return;
 
+    if (kDebugMode) debugPrint('ChatService: received message from $from, payload type: ${payload.runtimeType}');
+
     Map<String, dynamic>? messageJson;
     String? shareCode;
     if (payload is String) {
       try {
         messageJson = jsonDecode(payload) as Map<String, dynamic>;
         shareCode = messageJson['shareCode'] as String?;
+        if (kDebugMode) debugPrint('ChatService: parsed as plain JSON (first message?)');
       } catch (_) {
         final chats = await getChats();
         Chat? chat;
@@ -80,10 +83,13 @@ class ChatService {
           try {
             final decrypted = EncryptionService.decryptWithShareCode(payload, chat.shareCode!);
             messageJson = jsonDecode(decrypted) as Map<String, dynamic>;
-          } catch (_) {
+            if (kDebugMode) debugPrint('ChatService: decrypted successfully');
+          } catch (e) {
+            if (kDebugMode) debugPrint('ChatService: decrypt failed for msg from $from: $e');
             return;
           }
         } else {
+          if (kDebugMode) debugPrint('ChatService: no chat or shareCode for $from, dropping');
           return;
         }
       }
@@ -149,7 +155,8 @@ class ChatService {
       );
       await _saveChat(chat);
       _chatsUpdatedController.add(null);
-    } else if (shareCode != null && chat.shareCode == null) {
+    } else if (shareCode != null) {
+      // Всегда используем shareCode отправителя — он шифрует своими ключом
       chat = chat.copyWith(shareCode: shareCode);
       await _saveChat(chat);
     }

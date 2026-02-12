@@ -1,11 +1,49 @@
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
+const PENDING_FILE = join(__dirname, 'data', 'pending.json');
 
 // userId -> Set<WebSocket> (разные устройства одного юзера НЕ отключают друг друга)
 const clients = new Map();
 const pendingMessages = new Map();
+
+function loadPending() {
+  try {
+    if (existsSync(PENDING_FILE)) {
+      const data = JSON.parse(readFileSync(PENDING_FILE, 'utf8'));
+      for (const [userId, arr] of Object.entries(data)) {
+        if (Array.isArray(arr) && arr.length > 0) {
+          pendingMessages.set(userId, arr);
+        }
+      }
+      const total = [...pendingMessages.values()].reduce((s, arr) => s + arr.length, 0);
+      console.log(`[${new Date().toISOString()}] Loaded ${total} pending messages for ${pendingMessages.size} users`);
+    }
+  } catch (e) {
+    console.error('Failed to load pending messages:', e.message);
+  }
+}
+
+function savePending() {
+  try {
+    const dir = dirname(PENDING_FILE);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const data = {};
+    for (const [userId, arr] of pendingMessages) {
+      if (arr.length > 0) data[userId] = arr;
+    }
+    writeFileSync(PENDING_FILE, JSON.stringify(data), 'utf8');
+  } catch (e) {
+    console.error('Failed to save pending messages:', e.message);
+  }
+}
+
+loadPending();
 
 function getClientSet(userId) {
   let set = clients.get(userId);
@@ -56,6 +94,7 @@ wss.on('connection', (ws, req) => {
               ws.send(JSON.stringify(m));
             }
             pendingMessages.delete(userId);
+            savePending();
 
             // Ping для поддержания соединения (предотвращает таймаут)
             const timer = setInterval(() => {
@@ -92,6 +131,7 @@ wss.on('connection', (ws, req) => {
             const queue = pendingMessages.get(to) || [];
             queue.push(envelope);
             pendingMessages.set(to, queue);
+            savePending();
             console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (offline, queued)`);
           }
           break;

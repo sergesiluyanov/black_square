@@ -89,6 +89,47 @@ class EncryptionService {
     return Uint8List.fromList(_encrypter!.decryptBytes(encrypted, iv: iv));
   }
 
+  /// Шифрование текста общим ключом чата (shareCode)
+  static String encryptWithShareCode(String plainText, String shareCode) {
+    final encrypter = _encrypterFromShareCode(shareCode);
+    final iv = encrypt.IV.fromLength(_ivLength);
+    final encrypted = encrypter.encrypt(plainText, iv: iv);
+    return '${base64Encode(iv.bytes)}:${encrypted.base64}';
+  }
+
+  /// Дешифрование текста общим ключом чата
+  static String decryptWithShareCode(String encryptedData, String shareCode) {
+    final encrypter = _encrypterFromShareCode(shareCode);
+    final parts = encryptedData.split(':');
+    if (parts.length != 2) throw EncryptionException('Invalid format');
+    final iv = encrypt.IV(base64Decode(parts[0]));
+    final encrypted = encrypt.Encrypted.fromBase64(parts[1]);
+    return encrypter.decrypt(encrypted, iv: iv);
+  }
+
+  /// Шифрование байтов общим ключом чата (для файлов)
+  static Uint8List encryptBytesWithShareCode(Uint8List data, String shareCode) {
+    final encrypter = _encrypterFromShareCode(shareCode);
+    final iv = encrypt.IV.fromLength(_ivLength);
+    final encrypted = encrypter.encryptBytes(data, iv: iv);
+    return Uint8List.fromList([...iv.bytes, ...encrypted.bytes]);
+  }
+
+  /// Дешифрование байтов общим ключом чата
+  static Uint8List decryptBytesWithShareCode(Uint8List encryptedData, String shareCode) {
+    if (encryptedData.length < _ivLength) throw EncryptionException('Data too short');
+    final encrypter = _encrypterFromShareCode(shareCode);
+    final iv = encrypt.IV(encryptedData.sublist(0, _ivLength));
+    final cipherBytes = encryptedData.sublist(_ivLength);
+    final encrypted = encrypt.Encrypted(Uint8List.fromList(cipherBytes));
+    return Uint8List.fromList(encrypter.decryptBytes(encrypted, iv: iv));
+  }
+
+  static encrypt.Encrypter _encrypterFromShareCode(String shareCode) {
+    final hash = SHA256Digest().process(Uint8List.fromList(shareCode.codeUnits));
+    return encrypt.Encrypter(encrypt.AES(encrypt.Key(Uint8List.fromList(hash))));
+  }
+
   void _ensureInitialized() {
     if (_encrypter == null) {
       throw EncryptionException(

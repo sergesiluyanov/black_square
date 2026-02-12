@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:black_square/config.dart';
 import 'package:black_square/models/chat.dart';
@@ -47,6 +48,10 @@ class ChatService {
 
   void _handleIncomingMessage(Map<String, dynamic> msg) {
     if (msg['type'] != 'message') return;
+    _handleIncomingMessageAsync(msg);
+  }
+
+  Future<void> _handleIncomingMessageAsync(Map<String, dynamic> msg) async {
     final from = msg['from'] as String?;
     final chatId = msg['chatId'] as String?;
     final payload = msg['payload'];
@@ -54,23 +59,53 @@ class ChatService {
     if (from == null || payload == null) return;
 
     Map<String, dynamic>? messageJson;
+    String? shareCode;
     if (payload is String) {
       try {
         messageJson = jsonDecode(payload) as Map<String, dynamic>;
+        shareCode = messageJson['shareCode'] as String?;
       } catch (_) {
-        return;
+        final chats = await getChats();
+        Chat? chat;
+        for (final c in chats) {
+          if (c.recipientId == from) {
+            chat = c;
+            break;
+          }
+        }
+        if (chat != null && chat.shareCode != null) {
+          try {
+            final decrypted = EncryptionService.decryptWithShareCode(payload, chat.shareCode!);
+            messageJson = jsonDecode(decrypted) as Map<String, dynamic>;
+          } catch (_) {
+            return;
+          }
+        } else {
+          return;
+        }
       }
     } else if (payload is Map<String, dynamic>) {
       messageJson = payload;
+      shareCode = messageJson['shareCode'] as String?;
     } else {
       return;
     }
-
     final content = messageJson['content'] as String? ?? '';
-    _saveIncomingMessage(
+    final type = MessageType.values.byName(messageJson['type'] as String? ?? 'text');
+    final fileName = messageJson['fileName'] as String?;
+    final fileData = messageJson['fileData'] as String?;
+
+    final fileSize = messageJson['fileSize'] as int?;
+
+    await _saveIncomingMessage(
       from: from,
       chatId: chatId ?? from,
       content: content,
+      shareCode: shareCode,
+      type: type,
+      fileName: fileName,
+      fileData: fileData,
+      fileSize: fileSize,
       timestamp: timestamp != null ? DateTime.tryParse(timestamp) : null,
     );
   }
@@ -79,6 +114,11 @@ class ChatService {
     required String from,
     required String chatId,
     required String content,
+    String? shareCode,
+    MessageType type = MessageType.text,
+    String? fileName,
+    String? fileData,
+    int? fileSize,
     DateTime? timestamp,
   }) async {
     final chats = await getChats();
@@ -95,26 +135,53 @@ class ChatService {
         id: _uuid.v4(),
         name: from,
         recipientId: from,
+        shareCode: shareCode,
         lastMessageAt: timestamp ?? DateTime.now(),
       );
       await _saveChat(chat);
       _chatsUpdatedController.add(null);
+    } else if (shareCode != null && chat.shareCode == null) {
+      chat = chat.copyWith(shareCode: shareCode);
+      await _saveChat(chat);
+    }
+
+    String filePath = content;
+    if (type == MessageType.file && fileData != null) {
+      final appDir = await getApplicationDocumentsDirectory();
+      final filesDir = Directory('${appDir.path}/black_square_files');
+      if (!await filesDir.exists()) await filesDir.create(recursive: true);
+      final shareCodeKey = chat.shareCode;
+      if (shareCodeKey == null) return;
+      final decrypted = EncryptionService.decryptBytesWithShareCode(
+        Uint8List.fromList(base64Decode(fileData)),
+        shareCodeKey,
+      );
+      filePath = '${filesDir.path}/${_uuid.v4()}';
+      final encrypted = _encryption.encryptBytes(decrypted);
+      await File(filePath).writeAsBytes(encrypted);
     }
 
     final message = Message(
       id: _uuid.v4(),
       chatId: chat.id,
       senderId: from,
-      content: content,
+      content: filePath,
       timestamp: timestamp ?? DateTime.now(),
-      type: MessageType.text,
+      type: type,
       isFromMe: false,
+      fileName: fileName,
+      filePath: type == MessageType.file ? filePath : null,
+      fileSize: type == MessageType.file ? fileSize : null,
     );
     await _saveMessage(message);
 
+    final preview = type == MessageType.file
+        ? '📎 ${fileName ?? 'Файл'}'
+        : content.length > 50 ? '${content.substring(0, 50)}...' : content;
+
     await _saveChat(chat.copyWith(
       lastMessageAt: message.timestamp,
-      lastMessagePreview: content.length > 50 ? '${content.substring(0, 50)}...' : content,
+      lastMessagePreview: preview,
     ));
 
     _incomingMessageController.add(message);
@@ -135,15 +202,22 @@ class ChatService {
   }
 
   /// Создать новый чат
-  Future<Chat> createChat(String name, {String? recipientId}) async {
+  Future<Chat> createChat(String name, {String? recipientId, String? shareCode}) async {
+    final code = shareCode ?? _generateShareCode();
     final chat = Chat(
       id: _uuid.v4(),
       name: name,
       recipientId: recipientId,
+      shareCode: code,
       lastMessageAt: DateTime.now(),
     );
     await _saveChat(chat);
     return chat;
+  }
+
+  String _generateShareCode() {
+    final random = _uuid.v4().replaceAll('-', '') + _uuid.v4().replaceAll('-', '');
+    return random.substring(0, 32);
   }
 
   Future<void> _saveChat(Chat chat) async {
@@ -192,10 +266,24 @@ class ChatService {
     ));
 
     if (_ws.isConnected && chat.recipientId != null) {
+      final messages = await getMessages(chatId);
+      final isFirstMessage = messages.length <= 1;
+      String payload;
+      if (isFirstMessage) {
+        payload = jsonEncode({
+          ...message.toJson(),
+          'shareCode': chat.shareCode,
+        });
+      } else {
+        payload = EncryptionService.encryptWithShareCode(
+          jsonEncode(message.toJson()),
+          chat.shareCode!,
+        );
+      }
       _ws.sendMessage(
         to: chat.recipientId!,
         chatId: chatId,
-        payload: jsonEncode(message.toJson()),
+        payload: payload,
       );
     }
 
@@ -235,6 +323,40 @@ class ChatService {
       lastMessageAt: message.timestamp,
       lastMessagePreview: '📎 $fileName',
     ));
+
+    if (_ws.isConnected && chat.recipientId != null && chat.shareCode != null) {
+      final encryptedFile = EncryptionService.encryptBytesWithShareCode(fileBytes, chat.shareCode!);
+      final fileData = base64Encode(encryptedFile);
+
+      final messages = await getMessages(chatId);
+      final isFirstMessage = messages.length <= 1;
+
+      final payloadMap = {
+        'type': 'file',
+        'content': '',
+        'fileName': fileName,
+        'fileData': fileData,
+        'fileSize': file.lengthSync(),
+        'id': message.id,
+        'chatId': message.chatId,
+        'senderId': message.senderId,
+        'timestamp': message.timestamp.toIso8601String(),
+      };
+
+      String payload;
+      if (isFirstMessage && chat.shareCode != null) {
+        payloadMap['shareCode'] = chat.shareCode!;
+        payload = jsonEncode(payloadMap);
+      } else {
+        payload = EncryptionService.encryptWithShareCode(jsonEncode(payloadMap), chat.shareCode!);
+      }
+
+      _ws.sendMessage(
+        to: chat.recipientId!,
+        chatId: chatId,
+        payload: payload,
+      );
+    }
 
     return message;
   }

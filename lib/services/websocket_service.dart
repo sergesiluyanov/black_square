@@ -47,9 +47,15 @@ class WebSocketService {
       _subscription = _channel!.stream.listen(
         (data) {
           try {
-            final msg = jsonDecode(data as String) as Map<String, dynamic>;
-            onMessage?.call(msg);
-          } catch (_) {}
+            final str = data is String ? data : (data is List<int> ? String.fromCharCodes(data) : null);
+            if (str == null) return;
+            final msg = jsonDecode(str) as Map<String, dynamic>;
+            try {
+              onMessage?.call(msg);
+            } catch (_) {}
+          } catch (_) {
+            // Игнорируем ping/pong и прочие не-JSON фреймы
+          }
         },
         onError: (e) {
           _isConnected = false;

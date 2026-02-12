@@ -80,12 +80,18 @@ wss.on('connection', (ws, req) => {
           const connected = recipientSet ? [...recipientSet].filter(w => w.readyState === 1) : [];
           if (connected.length > 0) {
             for (const w of connected) {
-              w.send(JSON.stringify(envelope));
+              try {
+                w.send(JSON.stringify(envelope));
+              } catch (e) {
+                console.error(`[${new Date().toISOString()}] Send failed to ${to}:`, e.message);
+              }
             }
+            console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (${connected.length} device(s))`);
           } else {
             const queue = pendingMessages.get(to) || [];
             queue.push(envelope);
             pendingMessages.set(to, queue);
+            console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (offline, queued)`);
           }
           break;
 

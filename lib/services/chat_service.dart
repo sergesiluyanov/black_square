@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:black_square/config.dart';
 import 'package:black_square/models/chat.dart';
+import 'package:flutter/foundation.dart';
 import 'package:black_square/models/message.dart';
 import 'package:black_square/services/encryption_service.dart';
 import 'package:black_square/services/storage_service.dart';
@@ -48,7 +49,9 @@ class ChatService {
 
   void _handleIncomingMessage(Map<String, dynamic> msg) {
     if (msg['type'] != 'message') return;
-    _handleIncomingMessageAsync(msg);
+    _handleIncomingMessageAsync(msg).catchError((e, st) {
+      if (kDebugMode) debugPrint('ChatService: error handling message: $e\n$st');
+    });
   }
 
   Future<void> _handleIncomingMessageAsync(Map<String, dynamic> msg) async {
@@ -91,7 +94,13 @@ class ChatService {
       return;
     }
     final content = messageJson['content'] as String? ?? '';
-    final type = MessageType.values.byName(messageJson['type'] as String? ?? 'text');
+    MessageType type = MessageType.text;
+    try {
+      final typeStr = messageJson['type'] as String? ?? 'text';
+      type = MessageType.values.byName(typeStr);
+    } catch (_) {
+      type = MessageType.text;
+    }
     final fileName = messageJson['fileName'] as String?;
     final fileData = messageJson['fileData'] as String?;
 
@@ -147,18 +156,23 @@ class ChatService {
 
     String filePath = content;
     if (type == MessageType.file && fileData != null) {
-      final appDir = await getApplicationDocumentsDirectory();
-      final filesDir = Directory('${appDir.path}/black_square_files');
-      if (!await filesDir.exists()) await filesDir.create(recursive: true);
-      final shareCodeKey = chat.shareCode;
-      if (shareCodeKey == null) return;
-      final decrypted = EncryptionService.decryptBytesWithShareCode(
-        Uint8List.fromList(base64Decode(fileData)),
-        shareCodeKey,
-      );
-      filePath = '${filesDir.path}/${_uuid.v4()}';
-      final encrypted = _encryption.encryptBytes(decrypted);
-      await File(filePath).writeAsBytes(encrypted);
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        final filesDir = Directory('${appDir.path}/black_square_files');
+        if (!await filesDir.exists()) await filesDir.create(recursive: true);
+        final shareCodeKey = chat.shareCode;
+        if (shareCodeKey == null) return;
+        final decrypted = EncryptionService.decryptBytesWithShareCode(
+          Uint8List.fromList(base64Decode(fileData)),
+          shareCodeKey,
+        );
+        filePath = '${filesDir.path}/${_uuid.v4()}';
+        final encrypted = _encryption.encryptBytes(decrypted);
+        await File(filePath).writeAsBytes(encrypted);
+      } catch (e) {
+        if (kDebugMode) debugPrint('ChatService: failed to save file: $e');
+        return;
+      }
     }
 
     final message = Message(

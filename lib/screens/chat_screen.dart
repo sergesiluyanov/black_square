@@ -7,6 +7,7 @@ import 'package:black_square/services/chat_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
@@ -194,6 +195,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         itemBuilder: (context, index) {
                           return _MessageBubble(
                             message: _messages[index],
+                            chatService: context.read<ChatService>(),
                             onFileTap: (m) => _openFile(m),
                           );
                         },
@@ -210,11 +212,28 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
+bool _isImageFile(String? fileName) {
+  if (fileName == null) return false;
+  final ext = fileName.toLowerCase().split('.').last;
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext);
+}
+
+bool _isVideoFile(String? fileName) {
+  if (fileName == null) return false;
+  final ext = fileName.toLowerCase().split('.').last;
+  return ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
+}
+
 class _MessageBubble extends StatelessWidget {
   final Message message;
+  final ChatService chatService;
   final void Function(Message)? onFileTap;
 
-  const _MessageBubble({required this.message, this.onFileTap});
+  const _MessageBubble({
+    required this.message,
+    required this.chatService,
+    this.onFileTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -239,36 +258,48 @@ class _MessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (message.type == MessageType.file) ...[
-              GestureDetector(
-                onTap: onFileTap != null ? () => onFileTap!(message) : null,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.insert_drive_file, color: Colors.white70, size: 24),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            message.fileName ?? 'Файл',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (message.fileSize != null)
+              if (_isImageFile(message.fileName))
+                _ImagePreview(
+                  message: message,
+                  chatService: chatService,
+                  onTap: () => _showFullscreenImage(context, message),
+                )
+              else if (_isVideoFile(message.fileName))
+                _VideoPreview(
+                  message: message,
+                  chatService: chatService,
+                )
+              else
+                GestureDetector(
+                  onTap: onFileTap != null ? () => onFileTap!(message) : null,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.insert_drive_file, color: Colors.white70, size: 24),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              _formatSize(message.fileSize!),
-                              style: const TextStyle(color: Colors.white60, fontSize: 12),
+                              message.fileName ?? 'Файл',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                        ],
+                            if (message.fileSize != null)
+                              Text(
+                                _formatSize(message.fileSize!),
+                                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ] else
               Text(
                 message.content,
@@ -288,10 +319,270 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
+  void _showFullscreenImage(BuildContext context, Message message) async {
+    try {
+      final file = await chatService.getDecryptedFile(message.filePath!);
+      if (!context.mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => Scaffold(
+            backgroundColor: Colors.black,
+            body: SafeArea(
+              child: Stack(
+                children: [
+                  Center(
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 4,
+                      child: Image.file(file, fit: BoxFit.contain),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   String _formatSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
+class _ImagePreview extends StatelessWidget {
+  final Message message;
+  final ChatService chatService;
+  final VoidCallback onTap;
+
+  const _ImagePreview({
+    required this.message,
+    required this.chatService,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<File>(
+      future: chatService.getDecryptedFile(message.filePath!),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.broken_image, color: Colors.white54, size: 48),
+              const SizedBox(width: 8),
+              Text(
+                message.fileName ?? 'Фото',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          );
+        }
+        if (!snapshot.hasData) {
+          return const SizedBox(
+            width: 120,
+            height: 120,
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white54,
+                ),
+              ),
+            ),
+          );
+        }
+        return GestureDetector(
+          onTap: onTap,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              snapshot.data!,
+              width: 200,
+              height: 200,
+              fit: BoxFit.cover,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _VideoPreview extends StatefulWidget {
+  final Message message;
+  final ChatService chatService;
+
+  const _VideoPreview({required this.message, required this.chatService});
+
+  @override
+  State<_VideoPreview> createState() => _VideoPreviewState();
+}
+
+class _VideoPreviewState extends State<_VideoPreview> {
+  VideoPlayerController? _controller;
+  File? _decryptedFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVideo();
+  }
+
+  Future<void> _loadVideo() async {
+    try {
+      final file = await widget.chatService.getDecryptedFile(widget.message.filePath!);
+      if (!mounted) return;
+      setState(() {
+        _decryptedFile = file;
+        _controller = VideoPlayerController.file(file)
+          ..initialize().then((_) {
+            if (mounted) setState(() {});
+          });
+      });
+    } catch (_) {
+      if (mounted) setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return const SizedBox(
+        width: 200,
+        height: 120,
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white54,
+            ),
+          ),
+        ),
+      );
+    }
+    return GestureDetector(
+      onTap: () => _showFullscreenVideo(),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 200,
+              height: 120,
+              child: VideoPlayer(_controller!),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.play_arrow,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFullscreenVideo() {
+    if (_decryptedFile == null) return;
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => _FullscreenVideoPage(file: _decryptedFile!),
+      ),
+    );
+  }
+}
+
+class _FullscreenVideoPage extends StatefulWidget {
+  final File file;
+
+  const _FullscreenVideoPage({required this.file});
+
+  @override
+  State<_FullscreenVideoPage> createState() => _FullscreenVideoPageState();
+}
+
+class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
+  late VideoPlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.file(widget.file)
+      ..initialize().then((_) => setState(() {}))
+      ..play();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Center(
+              child: _controller.value.isInitialized
+                  ? AspectRatio(
+                      aspectRatio: _controller.value.aspectRatio,
+                      child: VideoPlayer(_controller),
+                    )
+                  : const CircularProgressIndicator(color: Colors.white),
+            ),
+            Positioned(
+              top: 8,
+              left: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

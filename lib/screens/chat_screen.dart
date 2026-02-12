@@ -24,15 +24,25 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Message> _messages = [];
   bool _isLoading = true;
   StreamSubscription<Message>? _messageSubscription;
+  StreamSubscription<Message>? _messageUpdatedSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
-    _messageSubscription = context.read<ChatService>().incomingMessages.listen((msg) {
+    final chatService = context.read<ChatService>();
+    _messageSubscription = chatService.incomingMessages.listen((msg) {
       if (msg.chatId == widget.chat.id && mounted) {
         setState(() => _messages = [..._messages, msg]);
         _scrollToBottom();
+      }
+    });
+    _messageUpdatedSubscription = chatService.messageUpdated.listen((msg) {
+      if (msg.chatId == widget.chat.id && mounted) {
+        final i = _messages.indexWhere((m) => m.id == msg.id);
+        if (i >= 0) {
+          setState(() => _messages = [..._messages]..[i] = msg);
+        }
       }
     });
   }
@@ -40,6 +50,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _messageSubscription?.cancel();
+    _messageUpdatedSubscription?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -258,7 +269,9 @@ class _MessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (message.type == MessageType.file) ...[
-              if (_isImageFile(message.fileName))
+              if (message.filePath == null)
+                _FileLoadingPlaceholder(fileName: message.fileName)
+              else if (_isImageFile(message.fileName))
                 _ImagePreview(
                   message: message,
                   chatService: chatService,
@@ -364,6 +377,42 @@ class _MessageBubble extends StatelessWidget {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
+class _FileLoadingPlaceholder extends StatelessWidget {
+  final String? fileName;
+
+  const _FileLoadingPlaceholder({this.fileName});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 200,
+      height: 120,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white54,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              fileName ?? 'Загрузка...',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

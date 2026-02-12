@@ -30,10 +30,12 @@ class ChatService {
 
   final _incomingMessageController = StreamController<Message>.broadcast();
   final _chatsUpdatedController = StreamController<void>.broadcast();
+  final _messageUpdatedController = StreamController<Message>.broadcast();
 
   WebSocketService get ws => _ws;
   Stream<Message> get incomingMessages => _incomingMessageController.stream;
   Stream<void> get chatsUpdated => _chatsUpdatedController.stream;
+  Stream<Message> get messageUpdated => _messageUpdatedController.stream;
 
   Future<void> initialize() async {
     await _encryption.initialize();
@@ -162,28 +164,47 @@ class ChatService {
     }
 
     String filePath = content;
-    if (type == MessageType.file && fileData != null) {
-      try {
-        final appDir = await getApplicationDocumentsDirectory();
-        final filesDir = Directory('${appDir.path}/black_square_files');
-        if (!await filesDir.exists()) await filesDir.create(recursive: true);
-        final shareCodeKey = chat.shareCode;
-        if (shareCodeKey == null) return;
-        final decrypted = EncryptionService.decryptBytesWithShareCode(
-          Uint8List.fromList(base64Decode(fileData)),
-          shareCodeKey,
-        );
-        filePath = '${filesDir.path}/${_uuid.v4()}';
-        final encrypted = _encryption.encryptBytes(decrypted);
-        await File(filePath).writeAsBytes(encrypted);
-      } catch (e) {
-        if (kDebugMode) debugPrint('ChatService: failed to save file: $e');
-        return;
-      }
+    final isFile = type == MessageType.file && fileData != null;
+    final messageId = _uuid.v4();
+
+    if (isFile) {
+      // Показываем сообщение сразу, файл обрабатываем в фоне
+      final placeholderMessage = Message(
+        id: messageId,
+        chatId: chat.id,
+        senderId: from,
+        content: '',
+        timestamp: timestamp ?? DateTime.now(),
+        type: type,
+        isFromMe: false,
+        fileName: fileName,
+        filePath: null, // ещё загружается
+        fileSize: fileSize,
+      );
+      await _saveMessage(placeholderMessage);
+      final preview = '📎 ${fileName ?? 'Файл'}';
+      await _saveChat(chat.copyWith(
+        lastMessageAt: placeholderMessage.timestamp,
+        lastMessagePreview: preview,
+      ));
+      _incomingMessageController.add(placeholderMessage);
+
+      // Обработка файла в фоне
+      _processAndUpdateFile(
+        messageId: messageId,
+        chatId: chat.id,
+        from: from,
+        fileData: fileData!,
+        shareCode: chat.shareCode!,
+        fileName: fileName,
+        fileSize: fileSize,
+        timestamp: timestamp ?? DateTime.now(),
+      );
+      return;
     }
 
     final message = Message(
-      id: _uuid.v4(),
+      id: messageId,
       chatId: chat.id,
       senderId: from,
       content: filePath,
@@ -206,6 +227,65 @@ class ChatService {
     ));
 
     _incomingMessageController.add(message);
+  }
+
+  Future<void> _processAndUpdateFile({
+    required String messageId,
+    required String chatId,
+    required String from,
+    required String fileData,
+    required String shareCode,
+    String? fileName,
+    int? fileSize,
+    required DateTime timestamp,
+  }) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final filesDir = Directory('${appDir.path}/black_square_files');
+      if (!await filesDir.exists()) await filesDir.create(recursive: true);
+      final decrypted = EncryptionService.decryptBytesWithShareCode(
+        Uint8List.fromList(base64Decode(fileData)),
+        shareCode,
+      );
+      final filePath = '${filesDir.path}/${_uuid.v4()}';
+      final encrypted = _encryption.encryptBytes(decrypted);
+      await File(filePath).writeAsBytes(encrypted);
+
+      final updatedMessage = Message(
+        id: messageId,
+        chatId: chatId,
+        senderId: from,
+        content: filePath,
+        timestamp: timestamp,
+        type: MessageType.file,
+        isFromMe: false,
+        fileName: fileName,
+        filePath: filePath,
+        fileSize: fileSize,
+      );
+      await _updateMessageInStorage(updatedMessage);
+      _messageUpdatedController.add(updatedMessage);
+    } catch (e) {
+      if (kDebugMode) debugPrint('ChatService: failed to save file: $e');
+    }
+  }
+
+  Future<void> _updateMessageInStorage(Message updated) async {
+    final encrypted = await _storage.getString(_messagesKey);
+    if (encrypted == null) return;
+    try {
+      final allMessages = jsonDecode(_encryption.decryptText(encrypted)) as Map<String, dynamic>;
+      final list = allMessages[updated.chatId] as List? ?? [];
+      final index = list.indexWhere((e) => (e as Map)['id'] == updated.id);
+      if (index >= 0) {
+        list[index] = updated.toJson();
+        allMessages[updated.chatId] = list;
+        await _storage.setString(
+          _messagesKey,
+          _encryption.encryptText(jsonEncode(allMessages)),
+        );
+      }
+    } catch (_) {}
   }
 
   /// Получить все чаты

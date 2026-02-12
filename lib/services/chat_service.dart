@@ -54,6 +54,14 @@ Uint8List _readFileInIsolate(List<Object> args) {
   return File(args[0] as String).readAsBytesSync();
 }
 
+/// Чтение + дешифрование для локального хранилища (getDecryptedFile)
+Uint8List _decryptStorageFileInIsolate(List<Object> args) {
+  final encryptedPath = args[0] as String;
+  final keyBytes = args[1] as Uint8List;
+  final encrypted = File(encryptedPath).readAsBytesSync();
+  return EncryptionService.decryptBytesWithKey([keyBytes, encrypted]);
+}
+
 /// Шифрование в изоляте — не блокирует UI
 Uint8List _encryptFileInIsolate(List<Object> args) {
   final fileBytes = args[0] as Uint8List;
@@ -294,13 +302,17 @@ class ChatService {
         return;
       }
       final decrypted = await compute(_decryptFileInIsolate, [fileData, shareCode]);
+      await Future.delayed(Duration.zero); // даём UI ответить, чтобы избежать ANR
 
       final appDir = await getApplicationDocumentsDirectory();
       final filesDir = Directory('${appDir.path}/black_square_files');
       if (!await filesDir.exists()) await filesDir.create(recursive: true);
       final cacheKey = _uuid.v4();
       final filePath = '${filesDir.path}/$cacheKey';
-      final encrypted = _encryption.encryptBytes(decrypted);
+      final keyBytes = _encryption.keyBytesForIsolate;
+      final encrypted = keyBytes != null
+          ? await compute(EncryptionService.encryptBytesWithKey, [keyBytes, decrypted])
+          : _encryption.encryptBytes(decrypted);
       await File(filePath).writeAsBytes(encrypted);
 
       final updatedMessage = Message(
@@ -581,8 +593,10 @@ class ChatService {
     final cachedFile = File('${cacheSubdir.path}/$cacheKey');
     if (await cachedFile.exists()) return cachedFile;
 
-    final encrypted = await File(encryptedPath).readAsBytes();
-    final decrypted = _encryption.decryptBytes(encrypted);
+    final keyBytes = _encryption.keyBytesForIsolate;
+    final decrypted = keyBytes != null
+        ? await compute(_decryptStorageFileInIsolate, [encryptedPath, keyBytes])
+        : _encryption.decryptBytes(await File(encryptedPath).readAsBytes());
     await cachedFile.writeAsBytes(decrypted);
     return cachedFile;
   }

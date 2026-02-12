@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+
+Map<String, dynamic> _parseJsonInIsolate(String s) => jsonDecode(s) as Map<String, dynamic>;
 
 /// Сервис WebSocket для подключения к серверу Black Square
 class WebSocketService {
@@ -46,15 +49,21 @@ class WebSocketService {
 
       _subscription = _channel!.stream.listen(
         (data) {
-          try {
-            final str = data is String ? data : (data is List<int> ? String.fromCharCodes(data) : null);
-            if (str == null) return;
-            final msg = jsonDecode(str) as Map<String, dynamic>;
+          final str = data is String ? data : (data is List<int> ? String.fromCharCodes(data) : null);
+          if (str == null) return;
+          // Большие сообщения (видео) — парсим в изоляте, чтобы не блокировать UI (ANR)
+          final threshold = 50 * 1024;
+          if (str.length > threshold) {
+            compute(_parseJsonInIsolate, str).then((msg) {
+              try {
+                onMessage?.call(msg);
+              } catch (_) {}
+            }).catchError((_) {});
+          } else {
             try {
+              final msg = jsonDecode(str) as Map<String, dynamic>;
               onMessage?.call(msg);
             } catch (_) {}
-          } catch (_) {
-            // Игнорируем ping/pong и прочие не-JSON фреймы
           }
         },
         onError: (e) {

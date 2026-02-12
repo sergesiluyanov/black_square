@@ -18,6 +18,10 @@ class EncryptionService {
   );
 
   encrypt.Encrypter? _encrypter;
+  Uint8List? _keyBytes;
+
+  /// Ключ для передачи в изолят (только для encryptBytes в фоне)
+  Uint8List? get keyBytesForIsolate => _keyBytes;
 
   /// Инициализация: загрузка или генерация ключа шифрования
   Future<void> initialize() async {
@@ -33,9 +37,38 @@ class EncryptionService {
     }
 
     final keyBytes = base64Decode(keyBase64);
+    _keyBytes = Uint8List.fromList(keyBytes);
     _encrypter = encrypt.Encrypter(
-      encrypt.AES(encrypt.Key(Uint8List.fromList(keyBytes))),
+      encrypt.AES(encrypt.Key(_keyBytes!)),
     );
+  }
+
+  /// Шифрование байтов в изоляте (статический метод для compute)
+  static Uint8List encryptBytesWithKey(List<Object> args) {
+    final keyBytes = args[0] as Uint8List;
+    final data = args[1] as Uint8List;
+    final encrypter = encrypt.Encrypter(
+      encrypt.AES(encrypt.Key(keyBytes)),
+    );
+    final iv = encrypt.IV.fromLength(_ivLength);
+    final encrypted = encrypter.encryptBytes(data, iv: iv);
+    return Uint8List.fromList([...iv.bytes, ...encrypted.bytes]);
+  }
+
+  /// Дешифрование байтов в изоляте (статический метод для compute)
+  static Uint8List decryptBytesWithKey(List<Object> args) {
+    final keyBytes = args[0] as Uint8List;
+    final encryptedData = args[1] as Uint8List;
+    if (encryptedData.length < _ivLength) {
+      throw EncryptionException('Encrypted data too short');
+    }
+    final encrypter = encrypt.Encrypter(
+      encrypt.AES(encrypt.Key(keyBytes)),
+    );
+    final iv = encrypt.IV(encryptedData.sublist(0, _ivLength));
+    final cipherBytes = encryptedData.sublist(_ivLength);
+    final encrypted = encrypt.Encrypted(Uint8List.fromList(cipherBytes));
+    return Uint8List.fromList(encrypter.decryptBytes(encrypted, iv: iv));
   }
 
   Uint8List _generateKey() {

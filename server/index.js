@@ -82,6 +82,11 @@ wss.on('connection', (ws, req) => {
     try {
       const msg = JSON.parse(data.toString());
 
+      // Лог входящих call-сигналов для отладки
+      if (msg.type && String(msg.type).startsWith('call-')) {
+        console.log(`[${new Date().toISOString()}] IN call: type=${msg.type} userId=${userId ?? 'null'} to=${msg.to ?? 'null'}`);
+      }
+
       switch (msg.type) {
         case 'auth':
           userId = msg.userId;

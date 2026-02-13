@@ -77,8 +77,11 @@ async function sendToUser(userId, message) {
     });
     if (res.failureCount > 0) {
       res.responses.forEach((r, i) => {
-        if (!r.success && r.error?.code === 'messaging/invalid-registration-token') {
-          tokens.delete(tokenList[i]);
+        if (!r.success) {
+          console.error(`[push] FCM error for ${userId}:`, r.error?.code, r.error?.message);
+          if (r.error?.code === 'messaging/invalid-registration-token') {
+            tokens.delete(tokenList[i]);
+          }
         }
       });
       console.error(`[push] Send to ${userId}: ${res.successCount} ok, ${res.failureCount} failed`);

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:black_square/config.dart';
 import 'package:black_square/services/chat_service.dart';
@@ -65,6 +66,9 @@ class CallService extends ChangeNotifier {
 
   bool _isMuted = false;
   bool get isMuted => _isMuted;
+
+  bool _isSpeakerOn = false;
+  bool get isSpeakerOn => _isSpeakerOn;
 
   /// Последняя ошибка (очищается при новом звонке)
   String? _lastError;
@@ -181,10 +185,14 @@ class CallService extends ChangeNotifier {
     if (sdpMap == null) return;
 
     try {
+      if (Platform.isAndroid) {
+        await Helper.setAndroidAudioConfiguration(AndroidAudioConfiguration.communication);
+      }
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
         'video': false,
       });
+      await Helper.setSpeakerphoneOn(false); // звук в трубку, не в динамик
 
       _peerConnection = await createPeerConnection(_iceServers);
 
@@ -262,10 +270,14 @@ class CallService extends ChangeNotifier {
     _setState(CallState.calling);
 
     try {
+      if (Platform.isAndroid) {
+        await Helper.setAndroidAudioConfiguration(AndroidAudioConfiguration.communication);
+      }
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
         'video': false,
       });
+      await Helper.setSpeakerphoneOn(false); // звук в трубку, не в динамик
 
       _peerConnection = await createPeerConnection(_iceServers);
 
@@ -380,6 +392,12 @@ class CallService extends ChangeNotifier {
     for (final track in _localStream!.getAudioTracks()) {
       track.enabled = !_isMuted;
     }
+    notifyListeners();
+  }
+
+  Future<void> toggleSpeaker() async {
+    _isSpeakerOn = !_isSpeakerOn;
+    await Helper.setSpeakerphoneOn(_isSpeakerOn);
     notifyListeners();
   }
 

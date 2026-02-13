@@ -96,7 +96,15 @@ class CallScreen extends StatelessWidget {
                             : const Color(0xFF6B8AFF),
                         onPressed: () => callService.toggleMute(),
                       ),
-                      const SizedBox(width: 48),
+                      const SizedBox(width: 24),
+                      _CallButton(
+                        icon: callService.isSpeakerOn ? Icons.volume_up : Icons.phone_in_talk,
+                        color: callService.isSpeakerOn
+                            ? const Color(0xFF6B8AFF)
+                            : Colors.white54,
+                        onPressed: () => callService.toggleSpeaker(),
+                      ),
+                      const SizedBox(width: 24),
                       _CallButton(
                         icon: Icons.call_end,
                         color: Colors.red,

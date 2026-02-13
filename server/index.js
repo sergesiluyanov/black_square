@@ -225,5 +225,5 @@ wss.on('connection', (ws, req) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Black Square server running on port ${PORT}`);
-  console.log(`WebSocket: ws://0.0.0.0:${PORT}`);
+  console.log(`HTTP: http://0.0.0.0:${PORT}  WebSocket: ws://0.0.0.0:${PORT} (clients use your server IP, e.g. ws://213.171.27.44:${PORT})`);
 });

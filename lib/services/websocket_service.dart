@@ -58,8 +58,10 @@ class WebSocketService {
     _isConnected = false;
 
     try {
+      if (kDebugMode) debugPrint('WebSocket: connecting to $_url');
       _channel = WebSocketChannel.connect(Uri.parse(_url!));
       _isConnected = true;
+      if (kDebugMode) debugPrint('WebSocket: connected, sending auth');
 
       _channel!.sink.add(jsonEncode({
         'type': 'auth',
@@ -81,8 +83,13 @@ class WebSocketService {
           } else {
             try {
               final msg = jsonDecode(str) as Map<String, dynamic>;
+              final t = msg['type'] as String?;
+              if (kDebugMode && t != null && t.startsWith('call-'))
+                debugPrint('WebSocket: <<< received type=$t');
               _dispatchMessage(msg);
-            } catch (_) {}
+            } catch (e) {
+              if (kDebugMode) debugPrint('WebSocket: parse error $e');
+            }
           }
         },
         onError: (e) {
@@ -128,7 +135,12 @@ class WebSocketService {
 
   /// Отправка произвольного JSON (для call signaling)
   void send(Map<String, dynamic> data) {
-    if (!_isConnected || _channel == null) return;
+    final t = data['type'] as String?;
+    if (!_isConnected || _channel == null) {
+      if (kDebugMode && t != null) debugPrint('WebSocket: send BLOCKED (connected=$_isConnected) type=$t');
+      return;
+    }
+    if (kDebugMode && t != null) debugPrint('WebSocket: >>> sending type=$t');
     _channel!.sink.add(jsonEncode(data));
   }
 

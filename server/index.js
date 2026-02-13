@@ -162,6 +162,21 @@ wss.on('connection', (ws, req) => {
           const callEnvelope = { ...msg, from: userId };
           const callRecipientSet = clients.get(callTo);
           const callConnected = callRecipientSet ? [...callRecipientSet].filter(w => w.readyState === 1) : [];
+
+          // Подтверждение для call-offer: отправитель узнает, дошёл ли сигнал до сервера
+          if (msg.type === 'call-offer') {
+            try {
+              ws.send(JSON.stringify({
+                type: 'call-offer-ack',
+                callId: msg.callId,
+                recipientOnline: callConnected.length > 0,
+                usersOnline: clients.size,
+              }));
+            } catch (e) {
+              console.error(`[${new Date().toISOString()}] Failed to send call-offer-ack:`, e.message);
+            }
+          }
+
           for (const w of callConnected) {
             try {
               w.send(JSON.stringify(callEnvelope));

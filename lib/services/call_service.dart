@@ -166,6 +166,13 @@ class CallService extends ChangeNotifier {
           _cleanup();
         }
         break;
+      case 'call-offer-ack':
+        // Подтверждение от сервера: сигнал дошёл, recipientOnline — абонент в сети
+        if (kDebugMode) {
+          final ack = msg['recipientOnline'] == true ? 'online' : 'offline';
+          debugPrint('CallService: call-offer-ack callId=$callId recipient=$ack');
+        }
+        break;
     }
   }
 

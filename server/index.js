@@ -100,7 +100,10 @@ wss.on('connection', (ws, req) => {
           userId = msg.userId;
           if (userId) {
             getClientSet(userId).add(ws);
-            if (msg.fcmToken) registerToken(userId, msg.fcmToken);
+            if (msg.fcmToken) {
+              registerToken(userId, msg.fcmToken);
+              console.log(`[${new Date().toISOString()}] FCM token registered for ${userId}`);
+            }
             console.log(`[${new Date().toISOString()}] Connect: ${userId} (conn: ${connId}, total users: ${clients.size})`);
 
             const pending = pendingMessages.get(userId) || [];

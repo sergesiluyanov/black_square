@@ -57,7 +57,10 @@ export function unregisterToken(userId, token) {
 async function sendToUser(userId, message) {
   if (!messaging) return;
   const tokens = fcmTokens.get(userId);
-  if (!tokens || tokens.size === 0) return;
+  if (!tokens || tokens.size === 0) {
+    console.log(`[push] No FCM token for user ${userId} — recipient must open app once to register`);
+    return;
+  }
   const tokenList = [...tokens];
   try {
     const res = await messaging.sendEachForMulticast({
@@ -78,6 +81,9 @@ async function sendToUser(userId, message) {
           tokens.delete(tokenList[i]);
         }
       });
+      console.error(`[push] Send to ${userId}: ${res.successCount} ok, ${res.failureCount} failed`);
+    } else {
+      console.log(`[push] Sent to ${userId} (${res.successCount} device(s))`);
     }
   } catch (e) {
     console.error(`[push] Send failed for ${userId}:`, e.message);

@@ -80,10 +80,14 @@ wss.on('connection', (ws, req) => {
 
   ws.on('message', (data) => {
     const raw = data.toString();
+    const size = raw.length;
+    // Лог больших сообщений (call-offer с SDP обычно 1–5 KB)
+    if (size > 500) {
+      console.log(`[${new Date().toISOString()}] IN large msg size=${size} preview=${raw.slice(0, 80)}...`);
+    }
     try {
       const msg = JSON.parse(raw);
       const msgType = msg.type;
-      const size = raw.length;
 
       // Лог всех входящих (кроме message — слишком часто)
       if (msgType && msgType !== 'message') {
@@ -224,6 +228,6 @@ wss.on('connection', (ws, req) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Black Square server running on port ${PORT}`);
-  console.log(`HTTP: http://0.0.0.0:${PORT}  WebSocket: ws://0.0.0.0:${PORT} (clients use your server IP, e.g. ws://213.171.27.44:${PORT})`);
+  console.log(`Black Square server v2 (call-signal logging) on port ${PORT}`);
+  console.log(`WebSocket: ws://YOUR_IP:${PORT}`);
 });

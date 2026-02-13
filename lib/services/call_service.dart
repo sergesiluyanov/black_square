@@ -93,7 +93,7 @@ class CallService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _cleanup() {
+  void _cleanupConnection() {
     _pendingOffer = null;
     _pendingIceCandidates.clear();
     _peerConnection?.close();
@@ -101,6 +101,10 @@ class CallService extends ChangeNotifier {
     _localStream?.getTracks().forEach((t) => t.stop());
     _localStream = null;
     _remoteStream = null;
+  }
+
+  void _cleanup() {
+    _cleanupConnection();
     _currentCall = null;
   }
 
@@ -116,7 +120,7 @@ class CallService extends ChangeNotifier {
   Future<String> _getRemoteName(String userId) async {
     final chats = await _chatService.getChats();
     for (final c in chats) {
-      if (c.recipientId == userId) return c.name;
+      if (c.recipientId == userId && c.name.isNotEmpty) return c.name;
     }
     return userId;
   }
@@ -187,8 +191,8 @@ class CallService extends ChangeNotifier {
       case 'call-hangup':
       case 'call-reject':
         if (_currentCall?.callId == callId) {
+          _cleanupConnection();
           _setState(CallState.ended);
-          _cleanup();
         }
         break;
       case 'call-offer-ack':
@@ -422,7 +426,7 @@ class CallService extends ChangeNotifier {
   }
 
   void hangUp() {
-    if (_currentCall == null) {
+    if (_currentCall == null || _state == CallState.ended) {
       _cleanup();
       _setState(CallState.idle);
       return;
@@ -433,8 +437,8 @@ class CallService extends ChangeNotifier {
       'to': _currentCall!.remoteUserId,
       'callId': _currentCall!.callId,
     });
+    _cleanupConnection();
     _setState(CallState.ended);
-    _cleanup();
   }
 
   Future<void> toggleMute() async {

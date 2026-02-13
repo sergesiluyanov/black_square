@@ -65,6 +65,10 @@ class CallService extends ChangeNotifier {
   bool _isMuted = false;
   bool get isMuted => _isMuted;
 
+  /// Последняя ошибка (очищается при новом звонке)
+  String? _lastError;
+  String? get lastError => _lastError;
+
   void _setState(CallState s) {
     _state = s;
     notifyListeners();
@@ -78,6 +82,11 @@ class CallService extends ChangeNotifier {
     _localStream = null;
     _remoteStream = null;
     _currentCall = null;
+  }
+
+  void _setError(String msg) {
+    _lastError = msg;
+    if (kDebugMode) debugPrint('CallService: $msg');
   }
 
   void init() {
@@ -212,8 +221,9 @@ class CallService extends ChangeNotifier {
       });
 
       _setState(CallState.connecting);
-    } catch (e) {
-      if (kDebugMode) debugPrint('CallService: handleOffer error $e');
+    } catch (e, st) {
+      _setError('Ошибка при приёме: ${e.toString()}');
+      if (kDebugMode) debugPrint('CallService: handleOffer error $e\n$st');
       _ws.send({'type': 'call-reject', 'to': from, 'callId': callId});
       _setState(CallState.ended);
       _cleanup();
@@ -231,6 +241,7 @@ class CallService extends ChangeNotifier {
   Future<void> startCall(String recipientId, String recipientName) async {
     if (_state != CallState.idle || !_ws.isConnected) return;
 
+    _lastError = null;
     final callId = _uuid.v4();
     _currentCall = CallInfo(
       callId: callId,
@@ -277,6 +288,13 @@ class CallService extends ChangeNotifier {
       final offer = await _peerConnection!.createOffer({});
       await _peerConnection!.setLocalDescription(offer);
 
+      if (!_ws.isConnected) {
+        _setError('Соединение потеряно. Проверьте интернет.');
+        _setState(CallState.ended);
+        _cleanup();
+        return;
+      }
+
       if (kDebugMode) debugPrint('CallService: sending call-offer to $recipientId, callId=$callId');
       _ws.send({
         'type': 'call-offer',
@@ -289,8 +307,9 @@ class CallService extends ChangeNotifier {
       });
 
       _setState(CallState.connecting);
-    } catch (e) {
-      if (kDebugMode) debugPrint('CallService: startCall error $e');
+    } catch (e, st) {
+      _setError('Ошибка: ${e.toString()}');
+      if (kDebugMode) debugPrint('CallService: startCall error $e\n$st');
       _setState(CallState.ended);
       _cleanup();
     }

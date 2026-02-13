@@ -53,6 +53,20 @@ class CallScreen extends StatelessWidget {
                     fontSize: 14,
                   ),
                 ),
+                if (callService.lastError != null) ...[
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      callService.lastError!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.red.shade300,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
                 const Spacer(),
                 if (state == CallState.incoming) ...[
                   Row(

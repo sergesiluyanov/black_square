@@ -64,6 +64,9 @@ class CallService extends ChangeNotifier {
   /// Ожидающий offer (для входящего звонка — обрабатываем при accept)
   Map<String, dynamic>? _pendingOffer;
 
+  /// Очередь ICE-кандидатов, пришедших до готовности peer connection
+  final List<Map<String, dynamic>> _pendingIceCandidates = [];
+
   bool _isMuted = false;
   bool get isMuted => _isMuted;
 
@@ -92,6 +95,7 @@ class CallService extends ChangeNotifier {
 
   void _cleanup() {
     _pendingOffer = null;
+    _pendingIceCandidates.clear();
     _peerConnection?.close();
     _peerConnection = null;
     _localStream?.getTracks().forEach((t) => t.stop());
@@ -164,15 +168,20 @@ class CallService extends ChangeNotifier {
         }
         break;
       case 'call-ice':
-        if (_currentCall?.callId == callId && _peerConnection != null) {
-          final c = msg['candidate'] as Map<String, dynamic>?;
-          if (c != null) {
-            _peerConnection!.addCandidate(RTCIceCandidate(
-              c['candidate'] as String?,
-              c['sdpMid'] as String?,
-              c['sdpMLineIndex'] as int?,
-            ));
-          }
+        if (_currentCall?.callId != callId) break;
+        final c = msg['candidate'] as Map<String, dynamic>?;
+        if (c == null) break;
+        final candidate = RTCIceCandidate(
+          c['candidate'] as String? ?? '',
+          c['sdpMid'] as String? ?? '',
+          (c['sdpMLineIndex'] as num?)?.toInt(),
+        );
+        if (_peerConnection != null) {
+          _peerConnection!.addCandidate(candidate).catchError((e) {
+            if (kDebugMode) debugPrint('CallService: addCandidate error $e');
+          });
+        } else {
+          _pendingIceCandidates.add(c);
         }
         break;
       case 'call-hangup':
@@ -230,6 +239,15 @@ class CallService extends ChangeNotifier {
         } else {
           _remoteStream = null;
         }
+        if (_state == CallState.connecting) _setState(CallState.connected);
+        notifyListeners();
+      };
+
+      _peerConnection!.onIceConnectionState = (state) {
+        if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+            state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+          if (_state == CallState.connecting) _setState(CallState.connected);
+        }
         notifyListeners();
       };
 
@@ -248,6 +266,17 @@ class CallService extends ChangeNotifier {
           'sdp': answer.sdp,
         },
       });
+
+      while (_pendingIceCandidates.isNotEmpty) {
+        final c = _pendingIceCandidates.removeAt(0);
+        try {
+          await _peerConnection!.addCandidate(RTCIceCandidate(
+            c['candidate'] as String? ?? '',
+            c['sdpMid'] as String? ?? '',
+            (c['sdpMLineIndex'] as num?)?.toInt(),
+          ));
+        } catch (_) {}
+      }
 
       _setState(CallState.connecting);
     } catch (e, st) {
@@ -314,6 +343,15 @@ class CallService extends ChangeNotifier {
           _remoteStream = event.streams.first;
         } else {
           _remoteStream = null;
+        }
+        if (_state == CallState.connecting) _setState(CallState.connected);
+        notifyListeners();
+      };
+
+      _peerConnection!.onIceConnectionState = (state) {
+        if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+            state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+          if (_state == CallState.connecting) _setState(CallState.connected);
         }
         notifyListeners();
       };

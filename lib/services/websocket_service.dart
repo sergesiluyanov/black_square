@@ -24,7 +24,28 @@ class WebSocketService {
 
   bool get isConnected => _isConnected;
 
+  Completer<bool>? _pendingPong;
+
+  /// Проверка соединения: отправляет ping, ждёт pong. Возвращает true если ответ получен.
+  Future<bool> checkConnection() async {
+    if (!_isConnected || _channel == null) return false;
+    _pendingPong = Completer<bool>();
+    _channel!.sink.add(jsonEncode({'type': 'ping'}));
+    Future.delayed(const Duration(seconds: 2), () {
+      if (_pendingPong != null && !_pendingPong!.isCompleted) {
+        _pendingPong!.complete(false);
+      }
+      _pendingPong = null;
+    });
+    return _pendingPong!.future;
+  }
+
   void _dispatchMessage(Map<String, dynamic> msg) {
+    if (msg['type'] == 'pong' && _pendingPong != null && !_pendingPong!.isCompleted) {
+      _pendingPong!.complete(true);
+      _pendingPong = null;
+      return;
+    }
     final type = msg['type'] as String?;
     if (type != null &&
         (type == 'call-offer' ||

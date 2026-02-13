@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:black_square/config.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:black_square/services/websocket_service.dart';
 import 'package:flutter/foundation.dart';
@@ -299,6 +300,15 @@ class CallService extends ChangeNotifier {
 
       if (!_ws.isConnected) {
         _setError('Соединение потеряно. Проверьте интернет.');
+        _setState(CallState.ended);
+        _cleanup();
+        return;
+      }
+
+      // Проверка: отвечает ли сервер (ping → pong)
+      final ok = await _ws.checkConnection();
+      if (!ok) {
+        _setError('Сервер не отвечает. Проверьте интернет и URL: ${Config.serverUrl}');
         _setState(CallState.ended);
         _cleanup();
         return;

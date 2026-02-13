@@ -101,7 +101,7 @@ export async function sendMessagePush(recipientId, fromId, fromName, chatId) {
     },
     data: {
       type: 'message',
-      from: fromId || '',
+      sender: fromId || '',
       fromName: fromName || '',
       chatId: chatId || '',
     },
@@ -116,7 +116,7 @@ export async function sendCallPush(recipientId, fromId, fromName, callId) {
     },
     data: {
       type: 'call',
-      from: fromId || '',
+      sender: fromId || '',
       fromName: fromName || '',
       callId: callId || '',
     },

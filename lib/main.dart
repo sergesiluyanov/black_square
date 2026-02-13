@@ -89,7 +89,7 @@ class _NotificationHandlerState extends State<_NotificationHandler> {
     final chatService = Provider.of<ChatService>(ctx, listen: false);
     if (type == 'message') {
       final chatId = data['chatId'];
-      final from = data['from'];
+      final from = data['sender'] ?? data['from'];
       chatService.getChats().then((chats) {
         final chat = chats.where((c) =>
             (chatId != null && c.id == chatId) ||

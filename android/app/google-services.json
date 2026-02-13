@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "947562166760",
+    "project_id": "blacksquare-7897f",
+    "storage_bucket": "blacksquare-7897f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:947562166760:android:adcd301d6c1fbd5da8cc5d",
+        "android_client_info": {
+          "package_name": "com.blacksquare.black_square"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC21T-gEvP17_QdBRdyXPR8aAgeXagVPY0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

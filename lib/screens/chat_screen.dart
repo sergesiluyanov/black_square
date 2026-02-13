@@ -199,12 +199,20 @@ class _ChatScreenState extends State<ChatScreen> {
               icon: const Icon(Icons.call, color: Color(0xFF6B8AFF)),
               onPressed: () {
                 final callService = context.read<CallService>();
-                if (callService.state == CallState.idle) {
-                  callService.startCall(
-                    widget.chat.recipientId!,
-                    widget.chat.name,
+                if (callService.state != CallState.idle) return;
+                if (!callService.canCall) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Нет подключения к серверу. Проверьте интернет.'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
+                  return;
                 }
+                callService.startCall(
+                  widget.chat.recipientId!,
+                  widget.chat.name,
+                );
               },
             ),
         ],

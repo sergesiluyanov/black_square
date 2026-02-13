@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:black_square/screens/chat_list_screen.dart';
 import 'package:black_square/screens/call_screen.dart';
 import 'package:black_square/services/call_service.dart';
@@ -19,7 +21,14 @@ void main() async {
   );
 
   final chatService = ChatService();
-  await chatService.initialize();
+  try {
+    await chatService.initialize().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw TimeoutException('Connection timeout'),
+    );
+  } on TimeoutException catch (_) {
+    // Сервер недоступен — запускаем приложение, WebSocket переподключится
+  } catch (_) {}
 
   final callService = CallService(chatService);
   callService.init();
@@ -28,7 +37,7 @@ void main() async {
     MultiProvider(
       providers: [
         Provider<ChatService>.value(value: chatService),
-        Provider<CallService>.value(value: callService),
+        ChangeNotifierProvider<CallService>.value(value: callService),
       ],
       child: const BlackSquareApp(),
     ),

@@ -7,10 +7,12 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
 
 /// STUN для WebRTC (NAT traversal)
+/// sdpSemantics: 'unified-plan' — требуется addTrack вместо addStream
 const _iceServers = {
   'iceServers': [
     {'urls': 'stun:stun.l.google.com:19302'},
   ],
+  'sdpSemantics': 'unified-plan',
 };
 
 enum CallState {
@@ -46,6 +48,9 @@ class CallService extends ChangeNotifier {
 
   CallState _state = CallState.idle;
   CallState get state => _state;
+
+  /// Можно ли инициировать звонок (WebSocket подключён)
+  bool get canCall => _ws.isConnected;
 
   CallInfo? _currentCall;
   CallInfo? get currentCall => _currentCall;
@@ -103,6 +108,7 @@ class CallService extends ChangeNotifier {
 
     switch (type) {
       case 'call-offer':
+        if (kDebugMode) debugPrint('CallService: received call-offer from $from, callId=$callId');
         if (_state == CallState.idle) {
           _currentCall = CallInfo(
             callId: callId,
@@ -163,7 +169,9 @@ class CallService extends ChangeNotifier {
 
       _peerConnection = await createPeerConnection(_iceServers);
 
-      await _peerConnection!.addStream(_localStream!);
+      for (final track in _localStream!.getAudioTracks()) {
+        await _peerConnection!.addTrack(track, _localStream!);
+      }
 
       _peerConnection!.onIceCandidate = (candidate) {
         _ws.send({
@@ -178,8 +186,12 @@ class CallService extends ChangeNotifier {
         });
       };
 
-      _peerConnection!.onAddStream = (stream) {
-        _remoteStream = stream;
+      _peerConnection!.onTrack = (event) {
+        if (event.streams.isNotEmpty) {
+          _remoteStream = event.streams.first;
+        } else {
+          _remoteStream = null;
+        }
         notifyListeners();
       };
 
@@ -236,7 +248,9 @@ class CallService extends ChangeNotifier {
 
       _peerConnection = await createPeerConnection(_iceServers);
 
-      await _peerConnection!.addStream(_localStream!);
+      for (final track in _localStream!.getAudioTracks()) {
+        await _peerConnection!.addTrack(track, _localStream!);
+      }
 
       _peerConnection!.onIceCandidate = (candidate) {
         _ws.send({
@@ -251,14 +265,19 @@ class CallService extends ChangeNotifier {
         });
       };
 
-      _peerConnection!.onAddStream = (stream) {
-        _remoteStream = stream;
+      _peerConnection!.onTrack = (event) {
+        if (event.streams.isNotEmpty) {
+          _remoteStream = event.streams.first;
+        } else {
+          _remoteStream = null;
+        }
         notifyListeners();
       };
 
       final offer = await _peerConnection!.createOffer({});
       await _peerConnection!.setLocalDescription(offer);
 
+      if (kDebugMode) debugPrint('CallService: sending call-offer to $recipientId, callId=$callId');
       _ws.send({
         'type': 'call-offer',
         'to': recipientId,

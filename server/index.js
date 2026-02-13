@@ -145,7 +145,15 @@ wss.on('connection', (ws, req) => {
         case 'call-ice':
         case 'call-hangup':
         case 'call-reject':
+          if (!userId) {
+            console.warn(`[${new Date().toISOString()}] Call signal ignored: sender not authenticated`);
+            break;
+          }
           const callTo = msg.to;
+          if (!callTo) {
+            console.warn(`[${new Date().toISOString()}] Call signal ignored: missing 'to' field`);
+            break;
+          }
           const callEnvelope = { ...msg, from: userId };
           const callRecipientSet = clients.get(callTo);
           const callConnected = callRecipientSet ? [...callRecipientSet].filter(w => w.readyState === 1) : [];
@@ -156,10 +164,14 @@ wss.on('connection', (ws, req) => {
               console.error(`[${new Date().toISOString()}] Call signal failed to ${callTo}:`, e.message);
             }
           }
-          if (callConnected.length === 0 && (msg.type === 'call-offer' || msg.type === 'call-ice')) {
-            ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
+          if (callConnected.length === 0) {
+            if (msg.type === 'call-offer' || msg.type === 'call-ice') {
+              ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
+            }
+            console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (recipient offline, ${clients.size} users online)`);
+          } else {
+            console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (${callConnected.length} device(s))`);
           }
-          console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo}`);
           break;
       }
     } catch (e) {

@@ -79,15 +79,18 @@ wss.on('connection', (ws, req) => {
   let userId = null;
 
   ws.on('message', (data) => {
+    const raw = data.toString();
     try {
-      const msg = JSON.parse(data.toString());
+      const msg = JSON.parse(raw);
+      const msgType = msg.type;
+      const size = raw.length;
 
-      // Лог входящих call-сигналов для отладки
-      if (msg.type && String(msg.type).startsWith('call-')) {
-        console.log(`[${new Date().toISOString()}] IN call: type=${msg.type} userId=${userId ?? 'null'} to=${msg.to ?? 'null'}`);
+      // Лог всех входящих (кроме message — слишком часто)
+      if (msgType && msgType !== 'message') {
+        console.log(`[${new Date().toISOString()}] IN type=${msgType} size=${size} userId=${userId ?? 'null'}`);
       }
 
-      switch (msg.type) {
+      switch (msgType) {
         case 'auth':
           userId = msg.userId;
           if (userId) {
@@ -195,7 +198,7 @@ wss.on('connection', (ws, req) => {
           break;
       }
     } catch (e) {
-      console.error('Parse error:', e.message);
+      console.error(`[${new Date().toISOString()}] Parse error: ${e.message}, msg length=${raw?.length ?? 0}, preview=${raw?.slice(0, 100)}`);
     }
   });
 

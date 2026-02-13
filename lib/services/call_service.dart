@@ -74,6 +74,17 @@ class CallService extends ChangeNotifier {
   String? _lastError;
   String? get lastError => _lastError;
 
+  /// Пропущенный звонок из push — показываем экран «Перезвонить»
+  ({String senderId, String senderName})? missedCallFromPush;
+  void showMissedCallFromPush(String senderId, String senderName) {
+    missedCallFromPush = (senderId: senderId, senderName: senderName);
+    notifyListeners();
+  }
+  void dismissMissedCallFromPush() {
+    missedCallFromPush = null;
+    notifyListeners();
+  }
+
   void _setState(CallState s) {
     _state = s;
     notifyListeners();
@@ -348,6 +359,7 @@ class CallService extends ChangeNotifier {
 
   Future<void> acceptCall() async {
     if (_state != CallState.incoming || _currentCall == null || _pendingOffer == null) return;
+    dismissMissedCallFromPush();
 
     final offer = _pendingOffer!;
     final callId = offer['callId'] as String;
@@ -360,6 +372,7 @@ class CallService extends ChangeNotifier {
 
   void rejectCall() {
     if (_state != CallState.incoming || _currentCall == null) return;
+    dismissMissedCallFromPush();
 
     _ws.send({
       'type': 'call-reject',

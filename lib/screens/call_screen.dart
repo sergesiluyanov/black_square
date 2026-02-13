@@ -1,6 +1,25 @@
+import 'package:black_square/models/chat.dart';
+import 'package:black_square/screens/chat_screen.dart';
 import 'package:black_square/services/call_service.dart';
+import 'package:black_square/services/chat_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+Future<void> _onCallBack(BuildContext context, CallService callService) async {
+  final missed = callService.missedCallFromPush;
+  if (missed == null) return;
+  callService.dismissMissedCallFromPush();
+  final chatService = context.read<ChatService>();
+  final chats = await chatService.getChats();
+  final chat = chats.where((c) => c.recipientId == missed.senderId).firstOrNull;
+  if (!context.mounted) return;
+  if (chat != null) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
+    );
+    callService.startCall(missed.senderId, missed.senderName);
+  }
+}
 
 /// Экран активного или входящего звонка
 class CallScreen extends StatelessWidget {
@@ -14,10 +33,14 @@ class CallScreen extends StatelessWidget {
         final callService = context.read<CallService>();
         final state = callService.state;
         final call = callService.currentCall;
+        final missed = callService.missedCallFromPush;
 
-        if (state == CallState.idle) {
+        if (state == CallState.idle && missed == null) {
           return const SizedBox.shrink();
         }
+
+        final displayName = call?.remoteName ?? missed?.senderName ?? '?';
+        final showMissedCall = state == CallState.idle && missed != null;
 
         return Material(
           color: const Color(0xFF0A0A0A),
@@ -30,9 +53,7 @@ class CallScreen extends StatelessWidget {
                   radius: 48,
                   backgroundColor: const Color(0xFF1A1A1A),
                   child: Text(
-                    call?.remoteName.isNotEmpty == true
-                        ? call!.remoteName[0].toUpperCase()
-                        : '?',
+                    displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
                     style: const TextStyle(
                       color: Color(0xFF6B8AFF),
                       fontSize: 36,
@@ -42,12 +63,12 @@ class CallScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  call?.remoteName ?? '',
+                  displayName,
                   style: const TextStyle(color: Colors.white, fontSize: 22),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _stateText(state),
+                  showMissedCall ? 'Пропущенный звонок' : _stateText(state),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.6),
                     fontSize: 14,
@@ -68,7 +89,19 @@ class CallScreen extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
-                if (state == CallState.incoming) ...[
+                if (showMissedCall) ...[
+                  _CallButton(
+                    icon: Icons.call_end,
+                    color: Colors.white54,
+                    onPressed: () => callService.dismissMissedCallFromPush(),
+                  ),
+                  const SizedBox(width: 48),
+                  _CallButton(
+                    icon: Icons.call,
+                    color: const Color(0xFF1A5F1A),
+                    onPressed: () => _onCallBack(context, callService),
+                  ),
+                ] else if (state == CallState.incoming) ...[
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

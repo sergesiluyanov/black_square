@@ -87,6 +87,7 @@ class _NotificationHandlerState extends State<_NotificationHandler> {
     final ctx = widget.navigatorKey.currentContext;
     if (ctx == null) return;
     final chatService = Provider.of<ChatService>(ctx, listen: false);
+    final callService = Provider.of<CallService>(ctx, listen: false);
     if (type == 'message') {
       final chatId = data['chatId'];
       final from = data['sender'] ?? data['from'];
@@ -100,8 +101,11 @@ class _NotificationHandlerState extends State<_NotificationHandler> {
           );
         }
       });
+    } else if (type == 'call') {
+      final senderId = data['sender'] ?? data['from'] ?? '';
+      final senderName = data['fromName'] ?? 'Кто-то звонит';
+      callService.showMissedCallFromPush(senderId, senderName);
     }
-    // type == 'call' — экран звонка уже поверх, просто открываем приложение
   }
 
   @override

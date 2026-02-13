@@ -75,7 +75,7 @@ class NotificationService {
     _fcmToken = await FirebaseMessaging.instance.getToken();
     if (kDebugMode) debugPrint('FCM token: ${_fcmToken?.substring(0, 20)}...');
 
-    FirebaseMessaging.onTokenRefresh.listen((token) {
+    FirebaseMessaging.instance.onTokenRefresh.listen((token) {
       _fcmToken = token;
       if (kDebugMode) debugPrint('FCM token refreshed');
     });
@@ -99,7 +99,7 @@ class NotificationService {
         for (var i = 1; i < parts.length; i += 2) {
           if (i + 1 < parts.length) data[parts[i]] = parts[i + 1];
         }
-        onNotificationTap?.call(type, data);
+        _onNotificationTap?.call(type, data);
       }
     } catch (_) {}
   }

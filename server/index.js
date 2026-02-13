@@ -214,6 +214,9 @@ wss.on('connection', (ws, req) => {
               console.error(`[${new Date().toISOString()}] Call signal failed to ${callTo}:`, e.message);
             }
           }
+          if (msg.type === 'call-offer') {
+            sendCallPush(callTo, userId, null, msg.callId).catch(() => {});
+          }
           if (callConnected.length === 0) {
             if (msg.type === 'call-offer') {
               const timeoutId = setTimeout(() => {
@@ -232,7 +235,6 @@ wss.on('connection', (ws, req) => {
                 from: userId,
                 timeoutId,
               });
-              sendCallPush(callTo, userId, null, msg.callId).catch(() => {});
               console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (offline, buffered, push sent)`);
             } else if (msg.type === 'call-ice') {
               ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));

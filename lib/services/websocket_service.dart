@@ -32,6 +32,7 @@ class WebSocketService {
             type == 'call-ice' ||
             type == 'call-hangup' ||
             type == 'call-reject')) {
+      if (kDebugMode) debugPrint('WebSocket: dispatching call signal type=$type to onCallSignal');
       onCallSignal?.call(msg);
     } else {
       onMessage?.call(msg);

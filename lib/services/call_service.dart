@@ -112,8 +112,9 @@ class CallService extends ChangeNotifier {
     final type = msg['type'] as String?;
     final from = msg['from'] as String?;
     final callId = msg['callId'] as String?;
+    if (kDebugMode) debugPrint('CallService: _handleCallSignal type=$type from=$from callId=$callId myUserId=${_chatService.userId}');
     if (from == null || callId == null) return;
-    if (from == _chatService.userId) return;
+    if (from == _chatService.userId) return; // игнорируем свои сигналы
 
     switch (type) {
       case 'call-offer':

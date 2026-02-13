@@ -19,7 +19,24 @@ class WebSocketService {
   /// Callback при получении сообщения от сервера
   void Function(Map<String, dynamic> message)? onMessage;
 
+  /// Callback при получении call-сигнала (call-offer, call-answer, call-ice, call-hangup, call-reject)
+  void Function(Map<String, dynamic> message)? onCallSignal;
+
   bool get isConnected => _isConnected;
+
+  void _dispatchMessage(Map<String, dynamic> msg) {
+    final type = msg['type'] as String?;
+    if (type != null &&
+        (type == 'call-offer' ||
+            type == 'call-answer' ||
+            type == 'call-ice' ||
+            type == 'call-hangup' ||
+            type == 'call-reject')) {
+      onCallSignal?.call(msg);
+    } else {
+      onMessage?.call(msg);
+    }
+  }
 
   /// Подключение к серверу
   Future<void> connect(String url, String userId) async {
@@ -56,13 +73,13 @@ class WebSocketService {
           if (str.length > threshold) {
             compute(_parseJsonInIsolate, str).then((msg) {
               try {
-                onMessage?.call(msg);
+                _dispatchMessage(msg);
               } catch (_) {}
             }).catchError((_) {});
           } else {
             try {
               final msg = jsonDecode(str) as Map<String, dynamic>;
-              onMessage?.call(msg);
+              _dispatchMessage(msg);
             } catch (_) {}
           }
         },
@@ -105,6 +122,12 @@ class WebSocketService {
       'chatId': chatId,
       'payload': payload,
     }));
+  }
+
+  /// Отправка произвольного JSON (для call signaling)
+  void send(Map<String, dynamic> data) {
+    if (!_isConnected || _channel == null) return;
+    _channel!.sink.add(jsonEncode(data));
   }
 
   /// Отключение

@@ -1,4 +1,6 @@
 import 'package:black_square/screens/chat_list_screen.dart';
+import 'package:black_square/screens/call_screen.dart';
+import 'package:black_square/services/call_service.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,9 +21,15 @@ void main() async {
   final chatService = ChatService();
   await chatService.initialize();
 
+  final callService = CallService(chatService);
+  callService.init();
+
   runApp(
-    Provider<ChatService>.value(
-      value: chatService,
+    MultiProvider(
+      providers: [
+        Provider<ChatService>.value(value: chatService),
+        Provider<CallService>.value(value: callService),
+      ],
       child: const BlackSquareApp(),
     ),
   );
@@ -50,6 +58,12 @@ class BlackSquareApp extends StatelessWidget {
         ),
       ),
       home: const ChatListScreen(),
+      builder: (context, child) => Stack(
+        children: [
+          child ?? const SizedBox.shrink(),
+          const Positioned.fill(child: CallScreen()),
+        ],
+      ),
     );
   }
 }

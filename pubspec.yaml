@@ -58,6 +58,9 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^6.0.2
 
+  # WebRTC для аудиозвонков
+  flutter_webrtc: ^1.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

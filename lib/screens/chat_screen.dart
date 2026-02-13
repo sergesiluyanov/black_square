@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:black_square/models/chat.dart';
 import 'package:black_square/models/message.dart';
+import 'package:black_square/services/call_service.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -99,6 +100,16 @@ class _ChatScreenState extends State<ChatScreen> {
     if (result == null || result.files.single.path == null) return;
 
     final file = File(result.files.single.path!);
+    final fileName = result.files.single.name;
+    if (_isVideoFile(fileName)) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Отправка видео временно отключена'),
+          backgroundColor: Color(0xFF333333),
+        ),
+      );
+      return;
+    }
 
     scaffoldMessenger.showSnackBar(
       const SnackBar(
@@ -182,6 +193,21 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+        actions: [
+          if (widget.chat.recipientId != null)
+            IconButton(
+              icon: const Icon(Icons.call, color: Color(0xFF6B8AFF)),
+              onPressed: () {
+                final callService = context.read<CallService>();
+                if (callService.state == CallState.idle) {
+                  callService.startCall(
+                    widget.chat.recipientId!,
+                    widget.chat.name,
+                  );
+                }
+              },
+            ),
+        ],
       ),
       body: Column(
         children: [

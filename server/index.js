@@ -139,6 +139,28 @@ wss.on('connection', (ws, req) => {
         case 'ping':
           ws.send(JSON.stringify({ type: 'pong' }));
           break;
+
+        case 'call-offer':
+        case 'call-answer':
+        case 'call-ice':
+        case 'call-hangup':
+        case 'call-reject':
+          const callTo = msg.to;
+          const callEnvelope = { ...msg, from: userId };
+          const callRecipientSet = clients.get(callTo);
+          const callConnected = callRecipientSet ? [...callRecipientSet].filter(w => w.readyState === 1) : [];
+          for (const w of callConnected) {
+            try {
+              w.send(JSON.stringify(callEnvelope));
+            } catch (e) {
+              console.error(`[${new Date().toISOString()}] Call signal failed to ${callTo}:`, e.message);
+            }
+          }
+          if (callConnected.length === 0 && (msg.type === 'call-offer' || msg.type === 'call-ice')) {
+            ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
+          }
+          console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo}`);
+          break;
       }
     } catch (e) {
       console.error('Parse error:', e.message);

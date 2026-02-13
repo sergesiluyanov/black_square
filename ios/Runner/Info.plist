@@ -47,5 +47,7 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Для сканирования QR-кода собеседника</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Для аудиозвонков</string>
 </dict>
 </plist>

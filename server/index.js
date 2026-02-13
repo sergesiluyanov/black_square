@@ -13,6 +13,10 @@ const PENDING_FILE = join(__dirname, 'data', 'pending.json');
 const clients = new Map();
 const pendingMessages = new Map();
 
+// recipientId -> { offer, callerWs, callId, from, timeoutId } — буфер для офлайн получателей
+const PENDING_CALL_TIMEOUT_MS = 45000; // 45 сек — caller ждёт
+const pendingCalls = new Map();
+
 function loadPending() {
   try {
     if (existsSync(PENDING_FILE)) {
@@ -113,6 +117,19 @@ wss.on('connection', (ws, req) => {
             pendingMessages.delete(userId);
             savePending();
 
+            // Буферизованный call-offer — доставляем при подключении
+            const pendingCall = pendingCalls.get(userId);
+            if (pendingCall) {
+              clearTimeout(pendingCall.timeoutId);
+              pendingCalls.delete(userId);
+              try {
+                ws.send(JSON.stringify(pendingCall.offer));
+                console.log(`[${new Date().toISOString()}] Delivered buffered call-offer to ${userId} from ${pendingCall.from}`);
+              } catch (e) {
+                console.error(`[${new Date().toISOString()}] Failed to deliver buffered call:`, e.message);
+              }
+            }
+
             // Ping для поддержания соединения (предотвращает таймаут)
             const timer = setInterval(() => {
               if (ws.readyState === 1) {
@@ -199,12 +216,30 @@ wss.on('connection', (ws, req) => {
           }
           if (callConnected.length === 0) {
             if (msg.type === 'call-offer') {
-              ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
+              const timeoutId = setTimeout(() => {
+                if (pendingCalls.get(callTo)?.callId === msg.callId) {
+                  pendingCalls.delete(callTo);
+                  try {
+                    ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
+                  } catch (_) {}
+                  console.log(`[${new Date().toISOString()}] Call timeout: ${userId} -> ${callTo}`);
+                }
+              }, PENDING_CALL_TIMEOUT_MS);
+              pendingCalls.set(callTo, {
+                offer: callEnvelope,
+                callerWs: ws,
+                callId: msg.callId,
+                from: userId,
+                timeoutId,
+              });
               sendCallPush(callTo, userId, null, msg.callId).catch(() => {});
+              console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (offline, buffered, push sent)`);
             } else if (msg.type === 'call-ice') {
               ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
             }
-            console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (recipient offline, ${clients.size} users online)`);
+            if (msg.type !== 'call-offer') {
+              console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (recipient offline)`);
+            }
           } else {
             console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (${callConnected.length} device(s))`);
           }
@@ -220,6 +255,13 @@ wss.on('connection', (ws, req) => {
     if (conn) {
       clearInterval(conn.timer);
       connections.delete(ws);
+    }
+    for (const [recipientId, pc] of pendingCalls.entries()) {
+      if (pc.callerWs === ws) {
+        clearTimeout(pc.timeoutId);
+        pendingCalls.delete(recipientId);
+        console.log(`[${new Date().toISOString()}] Pending call cancelled: caller disconnected`);
+      }
     }
     if (userId) {
       const set = clients.get(userId);

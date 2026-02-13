@@ -62,12 +62,16 @@ class WebSocketService {
   }
 
   /// Подключение к серверу
-  Future<void> connect(String url, String userId) async {
+  /// [fcmToken] — токен FCM для push-уведомлений (отправляется на сервер)
+  Future<void> connect(String url, String userId, {String? fcmToken}) async {
     _url = url;
     _userId = userId;
+    _fcmToken = fcmToken;
     _disconnectRequested = false;
     await _doConnect();
   }
+
+  String? _fcmToken;
 
   Future<void> _doConnect() async {
     if (_disconnectRequested) return;
@@ -84,10 +88,11 @@ class WebSocketService {
       _isConnected = true;
       if (kDebugMode) debugPrint('WebSocket: connected, sending auth');
 
-      _channel!.sink.add(jsonEncode({
-        'type': 'auth',
-        'userId': _userId!,
-      }));
+      final auth = {'type': 'auth', 'userId': _userId!};
+      if (_fcmToken != null && _fcmToken!.isNotEmpty) {
+        auth['fcmToken'] = _fcmToken!;
+      }
+      _channel!.sink.add(jsonEncode(auth));
 
       _subscription = _channel!.stream.listen(
         (data) {

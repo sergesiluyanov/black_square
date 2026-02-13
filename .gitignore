@@ -46,3 +46,6 @@ app.*.map.json
 
 # Server pending messages (user data)
 /server/data/
+
+# Firebase (секреты)
+**/firebase-service-account.json

@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { registerToken, sendMessagePush, sendCallPush } from './push.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
@@ -99,6 +100,7 @@ wss.on('connection', (ws, req) => {
           userId = msg.userId;
           if (userId) {
             getClientSet(userId).add(ws);
+            if (msg.fcmToken) registerToken(userId, msg.fcmToken);
             console.log(`[${new Date().toISOString()}] Connect: ${userId} (conn: ${connId}, total users: ${clients.size})`);
 
             const pending = pendingMessages.get(userId) || [];
@@ -144,7 +146,8 @@ wss.on('connection', (ws, req) => {
             queue.push(envelope);
             pendingMessages.set(to, queue);
             savePending();
-            console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (offline, queued)`);
+            sendMessagePush(to, userId, null, chatId).catch(() => {});
+            console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (offline, queued, push sent)`);
           }
           break;
 
@@ -192,7 +195,10 @@ wss.on('connection', (ws, req) => {
             }
           }
           if (callConnected.length === 0) {
-            if (msg.type === 'call-offer' || msg.type === 'call-ice') {
+            if (msg.type === 'call-offer') {
+              ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
+              sendCallPush(callTo, userId, null, msg.callId).catch(() => {});
+            } else if (msg.type === 'call-ice') {
               ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
             }
             console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (recipient offline, ${clients.size} users online)`);

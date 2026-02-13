@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:black_square/config.dart';
 import 'package:black_square/models/chat.dart';
+import 'package:black_square/services/notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:black_square/models/message.dart';
 import 'package:black_square/services/encryption_service.dart';
@@ -100,8 +101,9 @@ class ChatService {
     await _storage.setString(_userIdKey, _userId!);
 
     _ws.onMessage = _handleIncomingMessage;
+    final fcmToken = NotificationService().fcmToken;
     try {
-      await _ws.connect(Config.serverUrl, _userId!);
+      await _ws.connect(Config.serverUrl, _userId!, fcmToken: fcmToken);
     } catch (_) {}
   }
 

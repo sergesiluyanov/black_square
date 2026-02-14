@@ -8,14 +8,39 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
 
-/// STUN для WebRTC (NAT traversal)
+/// STUN/TURN для WebRTC (NAT traversal).
+/// Несколько STUN + TURN нужны для 4G/мобильного интернета.
 /// sdpSemantics: 'unified-plan' — требуется addTrack вместо addStream
-const _iceServers = {
-  'iceServers': [
+Map<String, dynamic> get _iceServers {
+  final servers = <Map<String, dynamic>>[
     {'urls': 'stun:stun.l.google.com:19302'},
-  ],
-  'sdpSemantics': 'unified-plan',
-};
+    {'urls': 'stun:stun1.l.google.com:19302'},
+    {'urls': 'stun:stun2.l.google.com:19302'},
+    {'urls': 'stun:stun3.l.google.com:19302'},
+    {'urls': 'stun:stun4.l.google.com:19302'},
+  ];
+  if (Config.turnUrl != null &&
+      Config.turnUrl!.isNotEmpty &&
+      Config.turnUsername != null &&
+      Config.turnCredential != null) {
+    servers.add({
+      'urls': Config.turnUrl!,
+      'username': Config.turnUsername!,
+      'credential': Config.turnCredential!,
+    });
+  } else {
+    // Публичный TURN для 4G (freeTURN) — fallback когда свой coturn не настроен
+    servers.add({
+      'urls': 'turn:freeturn.net:3478',
+      'username': 'free',
+      'credential': 'free',
+    });
+  }
+  return {
+    'iceServers': servers,
+    'sdpSemantics': 'unified-plan',
+  };
+}
 
 enum CallState {
   idle,

@@ -80,6 +80,7 @@ class ChatService {
   static const _messagesKey = 'messages';
   static const _chatsKey = 'chats';
   static const _userIdKey = 'user_id';
+  static const _displayNameKey = 'display_name';
 
   String? _userId;
   String? _currentChatId;
@@ -96,6 +97,18 @@ class ChatService {
 
   WebSocketService get ws => _ws;
   Stream<Message> get incomingMessages => _incomingMessageController.stream;
+
+  Future<String> getDisplayName() async {
+    final name = await _storage.getString(_displayNameKey);
+    if (name != null && name.trim().isNotEmpty) return name.trim();
+    final uid = _userId;
+    if (uid != null && uid.length > 8) return '${uid.substring(0, 8)}...';
+    return 'Имя';
+  }
+
+  Future<void> setDisplayName(String name) async {
+    await _storage.setString(_displayNameKey, name);
+  }
   Stream<void> get chatsUpdated => _chatsUpdatedController.stream;
   Stream<Message> get messageUpdated => _messageUpdatedController.stream;
 
@@ -512,10 +525,12 @@ class ChatService {
           chat.shareCode!,
         );
       }
+      final fromName = await getDisplayName();
       _ws.sendMessage(
         to: chat.recipientId!,
         chatId: chatId,
         payload: payload,
+        fromName: fromName,
       );
     }
 
@@ -586,10 +601,12 @@ class ChatService {
         payload = EncryptionService.encryptWithShareCode(jsonEncode(payloadMap), chat.shareCode!);
       }
 
+      final fromName = await getDisplayName();
       _ws.sendMessage(
         to: chat.recipientId!,
         chatId: chatId,
         payload: payload,
+        fromName: fromName,
       );
     }
 

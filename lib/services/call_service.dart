@@ -19,7 +19,6 @@ Map<String, dynamic> get _iceServers {
     {'urls': 'stun:stun3.l.google.com:19302'},
     {'urls': 'stun:stun4.l.google.com:19302'},
   ];
-  // Свой coturn — первый в списке
   if (Config.turnUrl != null &&
       Config.turnUrl!.isNotEmpty &&
       Config.turnUsername != null &&
@@ -35,13 +34,13 @@ Map<String, dynamic> get _iceServers {
       'username': Config.turnUsername!,
       'credential': Config.turnCredential!,
     });
+  } else {
+    servers.add({
+      'urls': 'turn:freeturn.net:3478',
+      'username': 'free',
+      'credential': 'free',
+    });
   }
-  // freeturn.net — fallback (relay-порты coturn могут быть закрыты в cloud.ru)
-  servers.add({
-    'urls': 'turn:freeturn.net:3478',
-    'username': 'free',
-    'credential': 'free',
-  });
   final config = <String, dynamic>{
     'iceServers': servers,
     'sdpSemantics': 'unified-plan',
@@ -146,7 +145,6 @@ class CallService extends ChangeNotifier {
   void _setError(String msg) {
     _lastError = msg;
     if (kDebugMode) debugPrint('CallService: $msg');
-    print('CallService ERROR: $msg'); // всегда в лог для отладки
   }
 
   void init() {

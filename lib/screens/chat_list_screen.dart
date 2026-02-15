@@ -104,9 +104,52 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   itemCount: _chats.length,
                   itemBuilder: (context, index) {
                     final chat = _chats[index];
-                    return _ChatTile(
-                      chat: chat,
-                      onTap: () => _openChat(context, chat),
+                    return Dismissible(
+                      key: ValueKey(chat.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 24),
+                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+                      ),
+                      confirmDismiss: (direction) async {
+                        return await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: const Color(0xFF1A1A1A),
+                            title: const Text(
+                              'Удалить чат?',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            content: Text(
+                              'Чат «${chat.name}» и все сообщения будут удалены безвозвратно.',
+                              style: const TextStyle(color: Colors.white70, height: 1.5),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Отмена', style: TextStyle(color: Colors.white54)),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      onDismissed: (_) async {
+                        await context.read<ChatService>().deleteChat(chat.id);
+                      },
+                      child: _ChatTile(
+                        chat: chat,
+                        onTap: () => _openChat(context, chat),
+                      ),
                     );
                   },
                 ),

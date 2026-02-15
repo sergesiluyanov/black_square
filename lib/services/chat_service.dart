@@ -448,6 +448,59 @@ class ChatService {
     }
   }
 
+  /// Удалить чат и все его сообщения (включая файлы)
+  Future<void> deleteChat(String chatId) async {
+    final messages = await getMessages(chatId);
+    for (final msg in messages) {
+      if (msg.type == MessageType.file && msg.filePath != null) {
+        try {
+          final f = File(msg.filePath!);
+          if (await f.exists()) await f.delete();
+        } catch (_) {}
+      }
+    }
+    final cacheDir = await getApplicationCacheDirectory();
+    final thumbDir = Directory('${cacheDir.path}/black_square_thumbs');
+    final decryptedDir = Directory('${cacheDir.path}/black_square_decrypted');
+    for (final msg in messages) {
+      if (msg.filePath != null) {
+        final key = msg.filePath!.split(RegExp(r'[/\\]')).last;
+        try {
+          final thumb = File('${thumbDir.path}/$key.jpg');
+          if (await thumb.exists()) await thumb.delete();
+        } catch (_) {}
+        try {
+          final dec = File('${decryptedDir.path}/$key');
+          if (await dec.exists()) await dec.delete();
+        } catch (_) {}
+      }
+    }
+
+    final chats = await getChats();
+    final updated = chats.where((c) => c.id != chatId).toList();
+    await _storage.setString(
+      _chatsKey,
+      _encryption.encryptText(jsonEncode(updated.map((c) => c.toJson()).toList())),
+    );
+
+    final encrypted = await _storage.getString(_messagesKey);
+    if (encrypted != null) {
+      try {
+        final allMessages = jsonDecode(_encryption.decryptText(encrypted)) as Map<String, dynamic>;
+        allMessages.remove(chatId);
+        await _storage.setString(
+          _messagesKey,
+          _encryption.encryptText(jsonEncode(allMessages)),
+        );
+      } catch (_) {}
+    }
+
+    if (_currentChatId == chatId) {
+      _currentChatId = null;
+    }
+    _emitChatsUpdated();
+  }
+
   /// Получить сообщения чата
   Future<List<Message>> getMessages(String chatId) async {
     final encrypted = await _storage.getString(_messagesKey);

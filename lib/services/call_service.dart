@@ -147,6 +147,7 @@ class CallService extends ChangeNotifier {
   void _setError(String msg) {
     _lastError = msg;
     if (kDebugMode) debugPrint('CallService: $msg');
+    print('CallService ERROR: $msg'); // всегда в лог для отладки
   }
 
   void init() {

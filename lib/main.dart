@@ -102,7 +102,10 @@ class _NotificationHandlerState extends State<_NotificationHandler> {
               sub?.cancel();
               Navigator.of(ctx).push(
                 MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
-              );
+              ).then((_) async {
+                await chatService.markChatAsRead(chat.id);
+                chatService.notifyChatsUpdated();
+              });
             }
           });
         }

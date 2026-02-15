@@ -41,7 +41,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _messages = [..._messages, msg];
           _newMessageIds.add(msg.id);
         });
-        _scrollToBottom();
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
       }
     });
     _messageUpdatedSubscription = chatService.messageUpdated.listen((msg) {
@@ -49,7 +49,7 @@ class _ChatScreenState extends State<ChatScreen> {
         final i = _messages.indexWhere((m) => m.id == msg.id);
         if (i >= 0) {
           setState(() => _messages = [..._messages]..[i] = msg);
-          _scrollToBottom();
+          WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
         }
       }
     });
@@ -72,7 +72,10 @@ class _ChatScreenState extends State<ChatScreen> {
       _messages = messages;
       _isLoading = false;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    // Двойной post-frame — чтобы ListView успел отрисоваться (важно при открытии по push)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    });
   }
 
   void _scrollToBottom() {

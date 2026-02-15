@@ -16,7 +16,10 @@ Future<void> _onCallBack(BuildContext context, CallService callService) async {
   if (chat != null) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
-    );
+    ).then((_) async {
+      await chatService.markChatAsRead(chat.id);
+      chatService.notifyChatsUpdated();
+    });
     callService.startCall(missed.senderId, missed.senderName);
   }
 }

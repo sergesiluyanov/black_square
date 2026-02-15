@@ -107,6 +107,9 @@ class CallService extends ChangeNotifier {
   bool _isSpeakerOn = false;
   bool get isSpeakerOn => _isSpeakerOn;
 
+  bool _isVideoOn = true;
+  bool get isVideoOn => _isVideoOn;
+
   /// Последняя ошибка (очищается при новом звонке)
   String? _lastError;
   String? get lastError => _lastError;
@@ -248,13 +251,13 @@ class CallService extends ChangeNotifier {
       }
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
-        'video': false,
+        'video': {'facingMode': 'user'},
       });
-      await Helper.setSpeakerphoneOn(false); // звук в трубку, не в динамик
+      await Helper.setSpeakerphoneOn(true); // видео — звук в динамик
 
       _peerConnection = await createPeerConnection(_iceServers);
 
-      for (final track in _localStream!.getAudioTracks()) {
+      for (final track in _localStream!.getTracks()) {
         await _peerConnection!.addTrack(track, _localStream!);
       }
 
@@ -357,13 +360,13 @@ class CallService extends ChangeNotifier {
       }
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
-        'video': false,
+        'video': {'facingMode': 'user'},
       });
-      await Helper.setSpeakerphoneOn(false); // звук в трубку, не в динамик
+      await Helper.setSpeakerphoneOn(true); // видео — звук в динамик
 
       _peerConnection = await createPeerConnection(_iceServers);
 
-      for (final track in _localStream!.getAudioTracks()) {
+      for (final track in _localStream!.getTracks()) {
         await _peerConnection!.addTrack(track, _localStream!);
       }
 
@@ -498,5 +501,27 @@ class CallService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> toggleVideo() async {
+    if (_localStream == null) return;
+    _isVideoOn = !_isVideoOn;
+    for (final track in _localStream!.getVideoTracks()) {
+      track.enabled = _isVideoOn;
+    }
+    notifyListeners();
+  }
+
+  Future<void> switchCamera() async {
+    if (_localStream == null) return;
+    final videoTracks = _localStream!.getVideoTracks();
+    if (videoTracks.isEmpty) return;
+    try {
+      await Helper.switchCamera(videoTracks.first);
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) debugPrint('CallService: switchCamera error $e');
+    }
+  }
+
+  MediaStream? get localStream => _localStream;
   MediaStream? get remoteStream => _remoteStream;
 }

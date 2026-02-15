@@ -93,7 +93,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatService = context.read<ChatService>();
     final message = await chatService.sendMessage(widget.chat.id, text);
     setState(() => _messages = [..._messages, message]);
-    _scrollToBottom();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
   Future<void> _sendFile() async {
@@ -130,7 +130,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final message = await chatService.sendFile(widget.chat.id, file);
       if (!mounted) return;
       setState(() => _messages = [..._messages, message]);
-      _scrollToBottom();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
       scaffoldMessenger.showSnackBar(
         const SnackBar(
           content: Text('Файл отправлен'),

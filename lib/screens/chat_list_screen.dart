@@ -178,7 +178,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
       MaterialPageRoute(
         builder: (_) => ChatScreen(chat: chat),
       ),
-    ).then((_) => _loadChats(silent: true));
+    ).then((_) async {
+      await context.read<ChatService>().markChatAsRead(chat.id);
+      if (mounted) _loadChats(silent: true);
+    });
   }
 
   void _showConnectionStatus(BuildContext context) {

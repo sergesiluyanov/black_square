@@ -86,7 +86,11 @@ function saveContactNames() {
 
 function getContactDisplayName(recipientUserId, senderUserId) {
   const names = contactNames.get(recipientUserId);
-  return names?.get(senderUserId) || null;
+  const name = names?.get(senderUserId) || null;
+  if (name && /^[0-9a-f-]{36}$/i.test(name)) {
+    return name.slice(0, 8) + '...';
+  }
+  return name;
 }
 
 loadContactNames();

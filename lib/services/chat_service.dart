@@ -109,7 +109,7 @@ class ChatService {
     final fcmToken = NotificationService().fcmToken;
     try {
       await _ws.connect(Config.serverUrl, _userId!, fcmToken: fcmToken);
-      syncContactNames();
+      Future.delayed(const Duration(seconds: 2), syncContactNames);
     } catch (_) {}
   }
 
@@ -427,9 +427,7 @@ class ChatService {
   void syncContactNames() {
     getChats().then((chats) {
       for (final chat in chats) {
-        if (chat.recipientId != null &&
-            chat.name.isNotEmpty &&
-            chat.name != chat.recipientId) {
+        if (chat.recipientId != null && chat.name.isNotEmpty) {
           _ws.setContactName(chat.recipientId!, chat.name);
         }
       }

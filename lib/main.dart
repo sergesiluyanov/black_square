@@ -100,12 +100,10 @@ class _NotificationHandlerState extends State<_NotificationHandler> {
                 (from != null && c.recipientId == from)).firstOrNull;
             if (chat != null && ctx.mounted) {
               sub?.cancel();
+              chatService.markChatAsRead(chat.id);
               Navigator.of(ctx).push(
                 MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
-              ).then((_) async {
-                await chatService.markChatAsRead(chat.id);
-                chatService.notifyChatsUpdated();
-              });
+              );
             }
           });
         }

@@ -439,11 +439,6 @@ class ChatService {
     _chatsUpdatedController.add(null);
   }
 
-  /// Принудительно обновить список чатов (для навигации по push)
-  void notifyChatsUpdated() {
-    _emitChatsUpdated();
-  }
-
   Future<void> markChatAsRead(String chatId) async {
     final chats = await getChats();
     final chat = chats.where((c) => c.id == chatId).firstOrNull;

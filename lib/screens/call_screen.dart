@@ -14,12 +14,10 @@ Future<void> _onCallBack(BuildContext context, CallService callService) async {
   final chat = chats.where((c) => c.recipientId == missed.senderId).firstOrNull;
   if (!context.mounted) return;
   if (chat != null) {
+    chatService.markChatAsRead(chat.id);
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
-    ).then((_) async {
-      await chatService.markChatAsRead(chat.id);
-      chatService.notifyChatsUpdated();
-    });
+    );
     callService.startCall(missed.senderId, missed.senderName);
   }
 }

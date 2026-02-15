@@ -22,7 +22,8 @@ Map<String, dynamic> get _iceServers {
   if (Config.turnUrl != null &&
       Config.turnUrl!.isNotEmpty &&
       Config.turnUsername != null &&
-      Config.turnCredential != null) {
+      Config.turnCredential != null &&
+      Config.turnCredential != 'CHANGE_ME') {
     servers.add({
       'urls': Config.turnUrl!,
       'username': Config.turnUsername!,

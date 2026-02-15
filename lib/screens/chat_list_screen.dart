@@ -110,7 +110,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     );
                   },
                 ),
-      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openNewChat(context),
         backgroundColor: const Color(0xFF1A1A1A),

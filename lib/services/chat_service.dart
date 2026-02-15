@@ -82,8 +82,13 @@ class ChatService {
   static const _userIdKey = 'user_id';
 
   String? _userId;
+  String? _currentChatId;
 
   String get userId => _userId ?? '';
+
+  void setCurrentChatId(String? chatId) {
+    _currentChatId = chatId;
+  }
 
   final _incomingMessageController = StreamController<Message>.broadcast();
   final _chatsUpdatedController = StreamController<void>.broadcast();
@@ -104,6 +109,7 @@ class ChatService {
     final fcmToken = NotificationService().fcmToken;
     try {
       await _ws.connect(Config.serverUrl, _userId!, fcmToken: fcmToken);
+      syncContactNames();
     } catch (_) {}
   }
 
@@ -212,9 +218,10 @@ class ChatService {
         recipientId: from,
         shareCode: shareCode,
         lastMessageAt: timestamp ?? DateTime.now(),
+        unreadCount: 1,
       );
       await _saveChat(chat);
-      _chatsUpdatedController.add(null);
+      _emitChatsUpdated();
     } else if (shareCode != null) {
       // Всегда используем shareCode отправителя — он шифрует своими ключом
       chat = chat.copyWith(shareCode: shareCode);
@@ -241,10 +248,13 @@ class ChatService {
       );
       await _saveMessage(placeholderMessage);
       final preview = '📎 ${fileName ?? 'Файл'}';
+      final unread = chatId != _currentChatId ? chat.unreadCount + 1 : 0;
       await _saveChat(chat.copyWith(
         lastMessageAt: placeholderMessage.timestamp,
         lastMessagePreview: preview,
+        unreadCount: unread,
       ));
+      _emitChatsUpdated();
       _incomingMessageController.add(placeholderMessage);
 
       // Обработка файла в фоне
@@ -279,11 +289,13 @@ class ChatService {
         ? '📎 ${fileName ?? 'Файл'}'
         : content.length > 50 ? '${content.substring(0, 50)}...' : content;
 
+    final unread = chatId != _currentChatId ? chat.unreadCount + 1 : 0;
     await _saveChat(chat.copyWith(
       lastMessageAt: message.timestamp,
       lastMessagePreview: preview,
+      unreadCount: unread,
     ));
-
+    _emitChatsUpdated();
     _incomingMessageController.add(message);
   }
 
@@ -405,7 +417,23 @@ class ChatService {
       lastMessageAt: DateTime.now(),
     );
     await _saveChat(chat);
+    if (recipientId != null && name.isNotEmpty) {
+      _ws.setContactName(recipientId, name);
+    }
     return chat;
+  }
+
+  /// Синхронизировать никнеймы контактов с сервером (для push)
+  void syncContactNames() {
+    getChats().then((chats) {
+      for (final chat in chats) {
+        if (chat.recipientId != null &&
+            chat.name.isNotEmpty &&
+            chat.name != chat.recipientId) {
+          _ws.setContactName(chat.recipientId!, chat.name);
+        }
+      }
+    });
   }
 
   String _generateShareCode() {
@@ -421,6 +449,19 @@ class ChatService {
       _chatsKey,
       _encryption.encryptText(jsonEncode(updated.map((c) => c.toJson()).toList())),
     );
+  }
+
+  void _emitChatsUpdated() {
+    _chatsUpdatedController.add(null);
+  }
+
+  Future<void> markChatAsRead(String chatId) async {
+    final chats = await getChats();
+    final chat = chats.where((c) => c.id == chatId).firstOrNull;
+    if (chat != null && chat.unreadCount > 0) {
+      await _saveChat(chat.copyWith(unreadCount: 0));
+      _emitChatsUpdated();
+    }
   }
 
   /// Получить сообщения чата

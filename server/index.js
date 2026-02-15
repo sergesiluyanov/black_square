@@ -8,9 +8,12 @@ import { registerToken, sendMessagePush, sendCallPush } from './push.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
 const PENDING_FILE = join(__dirname, 'data', 'pending.json');
+const CONTACT_NAMES_FILE = join(__dirname, 'data', 'contact_names.json');
 
 // userId -> Set<WebSocket> (разные устройства одного юзера НЕ отключают друг друга)
 const clients = new Map();
+// userId -> Map(recipientId -> displayName) — как пользователь называет контактов
+const contactNames = new Map();
 const pendingMessages = new Map();
 
 // recipientId -> { offer, callerWs, callId, from, timeoutId } — буфер для офлайн получателей
@@ -49,6 +52,44 @@ function savePending() {
 }
 
 loadPending();
+
+function loadContactNames() {
+  try {
+    if (existsSync(CONTACT_NAMES_FILE)) {
+      const data = JSON.parse(readFileSync(CONTACT_NAMES_FILE, 'utf8'));
+      for (const [userId, names] of Object.entries(data)) {
+        if (names && typeof names === 'object') {
+          contactNames.set(userId, new Map(Object.entries(names)));
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load contact names:', e.message);
+  }
+}
+
+function saveContactNames() {
+  try {
+    const dir = dirname(CONTACT_NAMES_FILE);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const data = {};
+    for (const [userId, names] of contactNames) {
+      if (names.size > 0) {
+        data[userId] = Object.fromEntries(names);
+      }
+    }
+    writeFileSync(CONTACT_NAMES_FILE, JSON.stringify(data), 'utf8');
+  } catch (e) {
+    console.error('Failed to save contact names:', e.message);
+  }
+}
+
+function getContactDisplayName(recipientUserId, senderUserId) {
+  const names = contactNames.get(recipientUserId);
+  return names?.get(senderUserId) || null;
+}
+
+loadContactNames();
 
 function getClientSet(userId) {
   let set = clients.get(userId);
@@ -140,8 +181,23 @@ wss.on('connection', (ws, req) => {
           }
           break;
 
+        case 'set-contact-name':
+          if (userId) {
+            const { recipientId, name } = msg;
+            if (recipientId && typeof name === 'string') {
+              let names = contactNames.get(userId);
+              if (!names) {
+                names = new Map();
+                contactNames.set(userId, names);
+              }
+              names.set(recipientId, name.trim());
+              saveContactNames();
+            }
+          }
+          break;
+
         case 'message':
-          const { to, chatId, payload } = msg;
+          const { to, chatId, payload, fromName } = msg;
           const envelope = {
             type: 'message',
             from: userId,
@@ -166,7 +222,8 @@ wss.on('connection', (ws, req) => {
             queue.push(envelope);
             pendingMessages.set(to, queue);
             savePending();
-            sendMessagePush(to, userId, null, chatId).catch(() => {});
+            const displayName = getContactDisplayName(to, userId) || fromName || (userId ? userId.slice(0, 8) + '...' : null) || 'Имя';
+            sendMessagePush(to, userId, displayName, chatId).catch(() => {});
             console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (offline, queued, push sent)`);
           }
           break;

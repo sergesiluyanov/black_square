@@ -131,8 +131,9 @@ class NotificationService {
       title = 'Входящий звонок';
       body = data['fromName'] ?? 'Кто-то звонит';
     } else {
-      title = data['title'] ?? 'Новое сообщение';
-      body = data['body'] ?? 'У вас новое сообщение';
+      final fromName = data['fromName'];
+      title = (fromName != null && fromName.isNotEmpty) ? fromName : (data['title'] ?? 'Новое сообщение');
+      body = (fromName != null && fromName.isNotEmpty) ? 'отправил сообщение' : (data['body'] ?? 'У вас новое сообщение');
     }
 
     final payloadParts = [type];

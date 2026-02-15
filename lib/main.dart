@@ -84,28 +84,38 @@ class _NotificationHandlerState extends State<_NotificationHandler> {
   }
 
   void _handleNotificationTap(String? type, Map<String, String> data) {
-    final ctx = widget.navigatorKey.currentContext;
-    if (ctx == null) return;
-    final chatService = Provider.of<ChatService>(ctx, listen: false);
-    final callService = Provider.of<CallService>(ctx, listen: false);
-    if (type == 'message') {
-      final chatId = data['chatId'];
-      final from = data['sender'] ?? data['from'];
-      chatService.getChats().then((chats) {
-        final chat = chats.where((c) =>
-            (chatId != null && c.id == chatId) ||
-            (from != null && c.recipientId == from)).firstOrNull;
-        if (chat != null && ctx.mounted) {
-          Navigator.of(ctx).push(
-            MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
-          );
+    void doNavigate() {
+      final ctx = widget.navigatorKey.currentContext;
+      if (ctx == null) return;
+      final chatService = Provider.of<ChatService>(ctx, listen: false);
+      final callService = Provider.of<CallService>(ctx, listen: false);
+      if (type == 'message') {
+        final chatId = data['chatId'];
+        final from = data['sender'] ?? data['from'];
+        StreamSubscription? sub;
+        void tryNavigate() {
+          chatService.getChats().then((chats) {
+            final chat = chats.where((c) =>
+                (chatId != null && c.id == chatId) ||
+                (from != null && c.recipientId == from)).firstOrNull;
+            if (chat != null && ctx.mounted) {
+              sub?.cancel();
+              Navigator.of(ctx).push(
+                MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
+              );
+            }
+          });
         }
-      });
-    } else if (type == 'call') {
-      final senderId = data['sender'] ?? data['from'] ?? '';
-      final senderName = data['fromName'] ?? 'Кто-то звонит';
-      callService.showMissedCallFromPush(senderId, senderName);
+        tryNavigate();
+        sub = chatService.chatsUpdated.listen((_) => tryNavigate());
+        Future.delayed(const Duration(seconds: 5), () => sub?.cancel());
+      } else if (type == 'call') {
+        final senderId = data['sender'] ?? data['from'] ?? '';
+        final senderName = data['fromName'] ?? 'Кто-то звонит';
+        callService.showMissedCallFromPush(senderId, senderName);
+      }
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) => doNavigate());
   }
 
   @override

@@ -24,17 +24,23 @@ class _ChatScreenState extends State<ChatScreen> {
   final _scrollController = ScrollController();
   List<Message> _messages = [];
   bool _isLoading = true;
+  final _newMessageIds = <String>{};
   StreamSubscription<Message>? _messageSubscription;
   StreamSubscription<Message>? _messageUpdatedSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
     final chatService = context.read<ChatService>();
+    chatService.setCurrentChatId(widget.chat.id);
+    chatService.markChatAsRead(widget.chat.id);
+    _loadMessages();
     _messageSubscription = chatService.incomingMessages.listen((msg) {
       if (msg.chatId == widget.chat.id && mounted) {
-        setState(() => _messages = [..._messages, msg]);
+        setState(() {
+          _messages = [..._messages, msg];
+          _newMessageIds.add(msg.id);
+        });
         _scrollToBottom();
       }
     });
@@ -43,6 +49,7 @@ class _ChatScreenState extends State<ChatScreen> {
         final i = _messages.indexWhere((m) => m.id == msg.id);
         if (i >= 0) {
           setState(() => _messages = [..._messages]..[i] = msg);
+          _scrollToBottom();
         }
       }
     });
@@ -50,6 +57,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    context.read<ChatService>().setCurrentChatId(null);
     _messageSubscription?.cancel();
     _messageUpdatedSubscription?.cancel();
     _controller.dispose();
@@ -248,10 +256,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         padding: const EdgeInsets.all(16),
                         itemCount: _messages.length,
                         itemBuilder: (context, index) {
+                          final msg = _messages[index];
                           return _MessageBubble(
-                            message: _messages[index],
+                            message: msg,
                             chatService: context.read<ChatService>(),
                             onFileTap: (m) => _openFile(m),
+                            showNewMarker: _newMessageIds.contains(msg.id),
                           );
                         },
                       ),
@@ -283,11 +293,13 @@ class _MessageBubble extends StatelessWidget {
   final Message message;
   final ChatService chatService;
   final void Function(Message)? onFileTap;
+  final bool showNewMarker;
 
   const _MessageBubble({
     required this.message,
     required this.chatService,
     this.onFileTap,
+    this.showNewMarker = false,
   });
 
   @override
@@ -296,7 +308,23 @@ class _MessageBubble extends StatelessWidget {
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (showNewMarker && !isMe)
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.only(right: 6, bottom: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFF6B8AFF),
+                shape: BoxShape.circle,
+              ),
+            ),
+          Flexible(
+            child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
@@ -373,7 +401,10 @@ class _MessageBubble extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  ],
+  ),
+);
   }
 
   void _showFullscreenImage(BuildContext context, Message message) async {

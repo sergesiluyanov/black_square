@@ -7,6 +7,7 @@ class Chat {
   final String? avatarPath;
   final DateTime lastMessageAt;
   final String? lastMessagePreview;
+  final int unreadCount;
 
   const Chat({
     required this.id,
@@ -16,6 +17,7 @@ class Chat {
     this.avatarPath,
     required this.lastMessageAt,
     this.lastMessagePreview,
+    this.unreadCount = 0,
   });
 
   factory Chat.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class Chat {
       avatarPath: json['avatarPath'] as String?,
       lastMessageAt: DateTime.parse(json['lastMessageAt'] as String),
       lastMessagePreview: json['lastMessagePreview'] as String?,
+      unreadCount: json['unreadCount'] as int? ?? 0,
     );
   }
 
@@ -39,6 +42,7 @@ class Chat {
       'avatarPath': avatarPath,
       'lastMessageAt': lastMessageAt.toIso8601String(),
       'lastMessagePreview': lastMessagePreview,
+      'unreadCount': unreadCount,
     };
   }
 
@@ -50,6 +54,7 @@ class Chat {
     String? avatarPath,
     DateTime? lastMessageAt,
     String? lastMessagePreview,
+    int? unreadCount,
   }) {
     return Chat(
       id: id ?? this.id,
@@ -59,6 +64,7 @@ class Chat {
       avatarPath: avatarPath ?? this.avatarPath,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
+      unreadCount: unreadCount ?? this.unreadCount,
     );
   }
 }

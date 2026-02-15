@@ -94,15 +94,16 @@ async function sendToUser(userId, message) {
 }
 
 export async function sendMessagePush(recipientId, fromId, fromName, chatId) {
+  const name = fromName || 'Имя';
   await sendToUser(recipientId, {
     notification: {
-      title: fromName || 'Новое сообщение',
-      body: 'У вас новое сообщение',
+      title: name,
+      body: 'отправил сообщение',
     },
     data: {
       type: 'message',
       sender: fromId || '',
-      fromName: fromName || '',
+      fromName: name,
       chatId: chatId || '',
     },
   });

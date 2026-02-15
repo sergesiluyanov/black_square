@@ -148,14 +148,29 @@ class WebSocketService {
     required String to,
     required String chatId,
     required String payload,
+    String? fromName,
   }) {
     if (!_isConnected || _channel == null) return;
 
-    _channel!.sink.add(jsonEncode({
+    final data = {
       'type': 'message',
       'to': to,
       'chatId': chatId,
       'payload': payload,
+    };
+    if (fromName != null && fromName.isNotEmpty) {
+      data['fromName'] = fromName;
+    }
+    _channel!.sink.add(jsonEncode(data));
+  }
+
+  /// Установить никнейм контакта на сервере (для push-уведомлений)
+  void setContactName(String recipientId, String name) {
+    if (!_isConnected || _channel == null) return;
+    _channel!.sink.add(jsonEncode({
+      'type': 'set-contact-name',
+      'recipientId': recipientId,
+      'name': name,
     }));
   }
 

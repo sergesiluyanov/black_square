@@ -15,15 +15,16 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-  late Future<List<Chat>> _chatsFuture;
+  List<Chat> _chats = [];
+  bool _isLoading = true;
   StreamSubscription? _chatsSubscription;
 
   @override
   void initState() {
     super.initState();
-    _refreshChats();
+    _loadChats();
     _chatsSubscription = context.read<ChatService>().chatsUpdated.listen((_) {
-      if (mounted) _refreshChats();
+      if (mounted) _loadChats(silent: true);
     });
   }
 
@@ -33,10 +34,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.dispose();
   }
 
-  void _refreshChats() {
-    setState(() {
-      _chatsFuture = context.read<ChatService>().getChats();
-    });
+  Future<void> _loadChats({bool silent = false}) async {
+    if (!silent) {
+      setState(() => _isLoading = true);
+    }
+    final chats = await context.read<ChatService>().getChats();
+    if (mounted) {
+      setState(() {
+        _chats = chats;
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -83,34 +91,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<Chat>>(
-        future: _chatsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
+      body: _isLoading && _chats.isEmpty
+          ? const Center(
               child: CircularProgressIndicator(color: Color(0xFF444444)),
-            );
-          }
-
-          final chats = snapshot.data ?? [];
-          if (chats.isEmpty) {
-            return _EmptyState(
-              onNewChat: () => _openNewChat(context),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: chats.length,
-            itemBuilder: (context, index) {
-              final chat = chats[index];
-              return _ChatTile(
-                chat: chat,
-                onTap: () => _openChat(context, chat),
-              );
-            },
-          );
-        },
+            )
+          : _chats.isEmpty
+              ? _EmptyState(
+                  onNewChat: () => _openNewChat(context),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: _chats.length,
+                  itemBuilder: (context, index) {
+                    final chat = _chats[index];
+                    return _ChatTile(
+                      chat: chat,
+                      onTap: () => _openChat(context, chat),
+                    );
+                  },
+                ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openNewChat(context),
@@ -137,7 +136,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       MaterialPageRoute(
         builder: (_) => ChatScreen(chat: chat),
       ),
-    ).then((_) => _refreshChats());
+    ).then((_) => _loadChats(silent: true));
   }
 
   void _showConnectionStatus(BuildContext context) {
@@ -263,23 +262,49 @@ class _ChatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasUnread = chat.unreadCount > 0;
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      leading: CircleAvatar(
-        backgroundColor: const Color(0xFF1A1A1A),
-        child: Text(
-          chat.name.isNotEmpty ? chat.name[0].toUpperCase() : '?',
-          style: const TextStyle(color: Color(0xFF6B8AFF), fontWeight: FontWeight.w600),
-        ),
+      leading: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          CircleAvatar(
+            backgroundColor: const Color(0xFF1A1A1A),
+            child: Text(
+              chat.name.isNotEmpty ? chat.name[0].toUpperCase() : '?',
+              style: const TextStyle(color: Color(0xFF6B8AFF), fontWeight: FontWeight.w600),
+            ),
+          ),
+          if (hasUnread)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF6B8AFF),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+        ],
       ),
       title: Text(
         chat.name,
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w500,
+        ),
       ),
       subtitle: Text(
         chat.lastMessagePreview ?? 'Нет сообщений',
-        style: const TextStyle(color: Colors.white54, fontSize: 13),
+        style: TextStyle(
+          color: hasUnread ? Colors.white70 : Colors.white54,
+          fontSize: 13,
+          fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+        ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),

@@ -29,6 +29,11 @@ Map<String, dynamic> get _iceServers {
       'username': Config.turnUsername!,
       'credential': Config.turnCredential!,
     });
+    servers.add({
+      'urls': '${Config.turnUrl!}?transport=tcp',
+      'username': Config.turnUsername!,
+      'credential': Config.turnCredential!,
+    });
   } else {
     // Публичный TURN для 4G (freeTURN) — fallback когда свой coturn не настроен
     servers.add({
@@ -37,10 +42,14 @@ Map<String, dynamic> get _iceServers {
       'credential': 'free',
     });
   }
-  return {
+  final config = <String, dynamic>{
     'iceServers': servers,
     'sdpSemantics': 'unified-plan',
   };
+  if (Config.turnRelayOnly) {
+    config['iceTransportPolicy'] = 'relay';
+  }
+  return config;
 }
 
 enum CallState {

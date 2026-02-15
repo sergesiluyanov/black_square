@@ -85,11 +85,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.person, color: Colors.white54, size: 22),
-            onPressed: () => _showDisplayNameDialog(context),
-            tooltip: 'Моё имя для push',
-          ),
-          IconButton(
             icon: const Icon(Icons.lock, color: Colors.white54, size: 22),
             onPressed: () => _showEncryptionInfo(context),
             tooltip: 'Шифрование',
@@ -173,45 +168,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK', style: TextStyle(color: Color(0xFF6B8AFF))),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDisplayNameDialog(BuildContext context) async {
-    final chatService = context.read<ChatService>();
-    final currentName = await chatService.getDisplayName();
-    final controller = TextEditingController(text: currentName);
-    if (!context.mounted) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text('Моё имя', style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Как вас видят в push',
-            hintStyle: TextStyle(color: Colors.white38),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена', style: TextStyle(color: Colors.white54)),
-          ),
-          TextButton(
-            onPressed: () async {
-              final name = controller.text.trim();
-              if (name.isNotEmpty) {
-                await chatService.setDisplayName(name);
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Сохранить', style: TextStyle(color: Color(0xFF6B8AFF))),
           ),
         ],
       ),

@@ -19,8 +19,8 @@ Map<String, dynamic> get _iceServers {
     {'urls': 'stun:stun3.l.google.com:19302'},
     {'urls': 'stun:stun4.l.google.com:19302'},
   ];
-  if (!Config.useFreeturnFallback &&
-      Config.turnUrl != null &&
+  // Свой coturn — первый в списке
+  if (Config.turnUrl != null &&
       Config.turnUrl!.isNotEmpty &&
       Config.turnUsername != null &&
       Config.turnCredential != null &&
@@ -35,14 +35,13 @@ Map<String, dynamic> get _iceServers {
       'username': Config.turnUsername!,
       'credential': Config.turnCredential!,
     });
-  } else {
-    // Публичный TURN (freeTURN) — для отладки или fallback когда свой coturn недоступен
-    servers.add({
-      'urls': 'turn:freeturn.net:3478',
-      'username': 'free',
-      'credential': 'free',
-    });
   }
+  // freeturn.net — fallback (relay-порты coturn могут быть закрыты в cloud.ru)
+  servers.add({
+    'urls': 'turn:freeturn.net:3478',
+    'username': 'free',
+    'credential': 'free',
+  });
   final config = <String, dynamic>{
     'iceServers': servers,
     'sdpSemantics': 'unified-plan',

@@ -13,5 +13,5 @@ class Config {
   static const bool turnRelayOnly = true;
 
   /// true = использовать freeturn.net вместо своего coturn (для отладки)
-  static const bool useFreeturnFallback = true;
+  static const bool useFreeturnFallback = false;
 }

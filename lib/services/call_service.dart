@@ -19,7 +19,8 @@ Map<String, dynamic> get _iceServers {
     {'urls': 'stun:stun3.l.google.com:19302'},
     {'urls': 'stun:stun4.l.google.com:19302'},
   ];
-  if (Config.turnUrl != null &&
+  if (!Config.useFreeturnFallback &&
+      Config.turnUrl != null &&
       Config.turnUrl!.isNotEmpty &&
       Config.turnUsername != null &&
       Config.turnCredential != null &&
@@ -35,7 +36,7 @@ Map<String, dynamic> get _iceServers {
       'credential': Config.turnCredential!,
     });
   } else {
-    // Публичный TURN для 4G (freeTURN) — fallback когда свой coturn не настроен
+    // Публичный TURN (freeTURN) — для отладки или fallback когда свой coturn недоступен
     servers.add({
       'urls': 'turn:freeturn.net:3478',
       'username': 'free',
@@ -260,6 +261,7 @@ class CallService extends ChangeNotifier {
       }
 
       _peerConnection!.onIceCandidate = (candidate) {
+        if (kDebugMode) debugPrint('CallService: ICE candidate (incoming) ${candidate.candidate?.length ?? 0} chars');
         _ws.send({
           'type': 'call-ice',
           'to': from,
@@ -368,6 +370,7 @@ class CallService extends ChangeNotifier {
       }
 
       _peerConnection!.onIceCandidate = (candidate) {
+        if (kDebugMode) debugPrint('CallService: ICE candidate (outgoing) ${candidate.candidate?.length ?? 0} chars');
         _ws.send({
           'type': 'call-ice',
           'to': recipientId,

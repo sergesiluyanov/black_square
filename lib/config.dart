@@ -11,4 +11,7 @@ class Config {
 
   /// true = только через TURN (для 4G когда P2P не работает)
   static const bool turnRelayOnly = true;
+
+  /// true = использовать freeturn.net вместо своего coturn (для отладки)
+  static const bool useFreeturnFallback = true;
 }

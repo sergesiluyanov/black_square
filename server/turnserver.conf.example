@@ -1,0 +1,21 @@
+# Пример /etc/turnserver.conf для coturn
+# Скопируйте на сервер и перезапустите: sudo systemctl restart coturn
+
+listening-port=3478
+tls-listening-port=5349
+
+# Критично для 4G: relay-ip и external-ip должны быть публичным IP сервера
+# Иначе клиент получает relay-кандидат с неправильным адресом
+relay-ip=213.171.27.44
+external-ip=213.171.27.44
+
+fingerprint
+lt-cred-mech
+user=blacksquare:BS_turn_9f0c4bfebe13e8f1
+realm=213.171.27.44
+
+no-multicast-peers
+no-cli
+
+# Подробные логи для отладки (убрать после настройки)
+verbose

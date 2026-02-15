@@ -283,9 +283,12 @@ class CallService extends ChangeNotifier {
       };
 
       _peerConnection!.onIceConnectionState = (state) {
+        if (kDebugMode) debugPrint('CallService: ICE state (incoming)=$state');
         if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
             state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
           if (_state == CallState.connecting) _setState(CallState.connected);
+        } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+          _setError('Соединение не установлено. Проверьте интернет.');
         }
         notifyListeners();
       };
@@ -388,9 +391,12 @@ class CallService extends ChangeNotifier {
       };
 
       _peerConnection!.onIceConnectionState = (state) {
+        if (kDebugMode) debugPrint('CallService: ICE state (outgoing)=$state');
         if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
             state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
           if (_state == CallState.connecting) _setState(CallState.connected);
+        } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+          _setError('Соединение не установлено. Проверьте интернет.');
         }
         notifyListeners();
       };

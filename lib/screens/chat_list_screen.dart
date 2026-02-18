@@ -4,6 +4,7 @@ import 'package:black_square/models/chat.dart';
 import 'package:black_square/screens/chat_screen.dart';
 import 'package:black_square/screens/new_chat_screen.dart';
 import 'package:black_square/services/chat_service.dart';
+import 'package:black_square/widgets/app_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -56,7 +57,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         elevation: 0,
         title: const Row(
           children: [
-            Icon(Icons.crop_square, color: Colors.white, size: 28),
+            AppLogo(size: 28),
             SizedBox(width: 12),
             Text(
               'Black Square',
@@ -258,15 +259,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.crop_square, size: 40, color: Color(0xFF444444)),
-            ),
+            const AppLogo(size: 120),
             const SizedBox(height: 24),
             const Text(
               'Нет чатов',

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:black_square/screens/chat_list_screen.dart';
+import 'package:black_square/screens/splash_screen.dart';
 import 'package:black_square/screens/chat_screen.dart';
 import 'package:black_square/screens/call_screen.dart';
 import 'package:black_square/services/call_service.dart';
@@ -145,7 +145,7 @@ class BlackSquareApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: const ChatListScreen(),
+      home: const SplashScreen(),
       builder: (context, child) => Stack(
         children: [
           child ?? const SizedBox.shrink(),

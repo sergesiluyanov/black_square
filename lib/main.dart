@@ -111,9 +111,8 @@ class _NotificationHandlerState extends State<_NotificationHandler> {
         sub = chatService.chatsUpdated.listen((_) => tryNavigate());
         Future.delayed(const Duration(seconds: 5), () => sub?.cancel());
       } else if (type == 'call') {
-        final senderId = data['sender'] ?? data['from'] ?? '';
-        final senderName = data['fromName'] ?? 'Кто-то звонит';
-        callService.showMissedCallFromPush(senderId, senderName);
+        // Не показываем «Перезвонить» — приложение откроется, WebSocket подключится,
+        // сервер доставит буферизованный call-offer, CallService покажет экран входящего звонка
       }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => doNavigate());

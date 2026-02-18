@@ -12,6 +12,49 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (kDebugMode) {
     debugPrint('FCM background: ${message.messageId} type=${message.data['type']}');
   }
+  final type = message.data['type'] ?? '';
+  if (type == 'call') {
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(
+      const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+    );
+    await plugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(const AndroidNotificationChannel(
+          'black_square_calls',
+          'Входящие звонки',
+          description: 'Полноэкранный экран звонка',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+        ));
+    final data = message.data;
+    final fromName = data['fromName'] ?? 'Кто-то звонит';
+    final payloadParts = [type];
+    for (final e in data.entries) {
+      payloadParts.addAll([e.key, e.value]);
+    }
+    final payload = payloadParts.join('|');
+    const androidDetails = AndroidNotificationDetails(
+      'black_square_calls',
+      'Входящие звонки',
+      channelDescription: 'Полноэкранный экран звонка',
+      importance: Importance.max,
+      priority: Priority.max,
+      fullScreenIntent: true,
+      playSound: true,
+      enableVibration: true,
+      category: AndroidNotificationCategory.call,
+    );
+    const details = NotificationDetails(android: androidDetails);
+    await plugin.show(
+      message.hashCode.abs() % 0x7FFFFFFF,
+      'Входящий звонок',
+      fromName,
+      details,
+      payload: payload,
+    );
+  }
 }
 
 /// Сервис push-уведомлений (FCM + локальные для foreground)
@@ -108,6 +151,8 @@ class NotificationService {
     if (kDebugMode) {
       debugPrint('FCM foreground: ${message.messageId} type=${message.data['type']}');
     }
+    // Звонки не показываем как push — CallService сразу показывает экран и играет мелодию
+    if (message.data['type'] == 'call') return;
     _showLocalNotification(message);
   }
 

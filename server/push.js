@@ -62,19 +62,17 @@ async function sendToUser(userId, message) {
     return;
   }
   const tokenList = [...tokens];
+  const payload = {
+    tokens: tokenList,
+    data: message.data,
+    android: { priority: 'high' },
+  };
+  if (!message.dataOnly && message.notification) {
+    payload.notification = message.notification;
+    payload.android.notification = { channelId: 'black_square_messages', sound: 'default' };
+  }
   try {
-    const res = await messaging.sendEachForMulticast({
-      tokens: tokenList,
-      notification: message.notification,
-      data: message.data,
-      android: {
-        priority: 'high',
-        notification: {
-          channelId: 'black_square_messages',
-          sound: 'default',
-        },
-      },
-    });
+    const res = await messaging.sendEachForMulticast(payload);
     if (res.failureCount > 0) {
       res.responses.forEach((r, i) => {
         if (!r.success) {
@@ -107,12 +105,10 @@ export async function sendMessagePush(recipientId, fromId, chatId) {
   });
 }
 
+/// Data-only push для звонков — приложение само показывает экран и мелодию (full-screen intent в фоне)
 export async function sendCallPush(recipientId, fromId, fromName, callId) {
   await sendToUser(recipientId, {
-    notification: {
-      title: 'Входящий звонок',
-      body: fromName || 'Кто-то звонит',
-    },
+    dataOnly: true,
     data: {
       type: 'call',
       sender: fromId || '',

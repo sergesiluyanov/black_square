@@ -5,6 +5,7 @@ import 'package:black_square/config.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:black_square/services/websocket_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
 
@@ -127,6 +128,11 @@ class CallService extends ChangeNotifier {
 
   void _setState(CallState s) {
     _state = s;
+    if (s == CallState.incoming) {
+      FlutterRingtonePlayer().playRingtone(looping: true, asAlarm: true);
+    } else {
+      FlutterRingtonePlayer().stop();
+    }
     notifyListeners();
   }
 
@@ -141,6 +147,7 @@ class CallService extends ChangeNotifier {
   }
 
   void _cleanup() {
+    FlutterRingtonePlayer().stop();
     _cleanupConnection();
     _currentCall = null;
   }

@@ -214,7 +214,8 @@ wss.on('connection', (ws, req) => {
               console.error(`[${new Date().toISOString()}] Call signal failed to ${callTo}:`, e.message);
             }
           }
-          if (msg.type === 'call-offer') {
+          // Push только когда получатель офлайн — иначе экран звонка показывается сразу через WebSocket
+          if (msg.type === 'call-offer' && callConnected.length === 0) {
             sendCallPush(callTo, userId, null, msg.callId).catch(() => {});
           }
           if (callConnected.length === 0) {

@@ -64,6 +64,9 @@ dependencies:
   # Мелодия входящего звонка (системная)
   flutter_ringtone_player: ^4.0.0
 
+  # Полноэкранный экран звонка без push (foreground/background/killed)
+  flutter_callkit_incoming: ^3.0.0
+
   # Push-уведомления (FCM)
   firebase_core: ^3.8.1
   firebase_messaging: ^15.1.6

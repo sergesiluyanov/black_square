@@ -5,6 +5,8 @@ import 'package:black_square/config.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:black_square/services/websocket_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
@@ -128,7 +130,7 @@ class CallService extends ChangeNotifier {
 
   void _setState(CallState s) {
     _state = s;
-    if (s == CallState.incoming) {
+    if (s == CallState.incoming && !Platform.isAndroid) {
       FlutterRingtonePlayer().playRingtone(looping: true, asAlarm: true);
     } else {
       FlutterRingtonePlayer().stop();
@@ -157,8 +159,14 @@ class CallService extends ChangeNotifier {
     if (kDebugMode) debugPrint('CallService: $msg');
   }
 
+  StreamSubscription? _callKitSubscription;
+
   void init() {
     _ws.onCallSignal = _handleCallSignal;
+    if (Platform.isAndroid) {
+      _callKitSubscription = FlutterCallkitIncoming.onEvent.listen(_onCallKitEvent);
+      FlutterCallkitIncoming.requestFullIntentPermission().catchError((_) {});
+    }
   }
 
   Future<String> _getRemoteName(String userId) async {
@@ -169,8 +177,96 @@ class CallService extends ChangeNotifier {
     return userId;
   }
 
+  void _onCallKitEvent(CallEvent? event) {
+    if (event == null || _currentCall == null) return;
+    final body = event.body is Map ? event.body as Map : null;
+    final eventId = body?['id'] ?? body?['callId'];
+    if (eventId != _currentCall!.callId) return;
+    switch (event.event) {
+      case Event.actionCallAccept:
+        acceptCall();
+        _hideCallKit();
+        break;
+      case Event.actionCallDecline:
+      case Event.actionCallEnded:
+        rejectCall();
+        _hideCallKit();
+        break;
+      case Event.actionCallTimeout:
+        _cleanupConnection();
+        _setState(CallState.ended);
+        _hideCallKit();
+        break;
+      case Event.actionCallCallback:
+        final body = event.body is Map ? event.body as Map : null;
+        if (body != null) {
+          final from = body['from'] ?? body['sender'] ?? body['handle'];
+          final name = body['nameCaller'] ?? body['fromName'] ?? from;
+          if (from != null && from.toString().isNotEmpty) {
+            showMissedCallFromPush(from.toString(), name?.toString() ?? from.toString());
+          }
+        }
+        _hideCallKit();
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _hideCallKit() async {
+    if (_currentCall != null) {
+      try {
+        await FlutterCallkitIncoming.hideCallkitIncoming(
+          CallKitParams(id: _currentCall!.callId),
+        );
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _showCallKit(String callId, String fromName, String from) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await FlutterCallkitIncoming.showCallkitIncoming(
+        CallKitParams(
+          id: callId,
+          nameCaller: fromName,
+          appName: 'Black Square',
+          handle: from,
+          type: 1,
+          duration: 45000,
+          textAccept: 'Принять',
+          textDecline: 'Отклонить',
+          callingNotification: const NotificationParams(
+            showNotification: false,
+            isShowCallback: false,
+          ),
+          missedCallNotification: const NotificationParams(
+            showNotification: true,
+            isShowCallback: true,
+            subtitle: 'Пропущенный звонок',
+            callbackText: 'Перезвонить',
+          ),
+          extra: {'callId': callId, 'from': from},
+          android: const AndroidParams(
+            isCustomNotification: true,
+            isShowFullLockedScreen: true,
+            ringtonePath: 'system_ringtone_default',
+            backgroundColor: '#0A0A0A',
+            actionColor: '#6B8AFF',
+            textColor: '#ffffff',
+            incomingCallNotificationChannelName: 'Входящие звонки',
+            missedCallNotificationChannelName: 'Пропущенные',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (kDebugMode) debugPrint('CallService: CallKit error $e');
+    }
+  }
+
   @override
   void dispose() {
+    _callKitSubscription?.cancel();
     _ws.onCallSignal = null;
     hangUp();
     super.dispose();
@@ -197,6 +293,7 @@ class CallService extends ChangeNotifier {
           );
           _pendingOffer = {'callId': callId, 'from': from, 'sdp': msg['sdp']};
           _setState(CallState.incoming);
+          _showCallKit(callId, from, from);
           _getRemoteName(from).then((name) {
             if (_currentCall != null && _currentCall!.remoteUserId == from) {
               _currentCall = CallInfo(
@@ -237,6 +334,7 @@ class CallService extends ChangeNotifier {
         if (_currentCall?.callId == callId) {
           _cleanupConnection();
           _setState(CallState.ended);
+          _hideCallKit();
         }
         break;
       case 'call-offer-ack':

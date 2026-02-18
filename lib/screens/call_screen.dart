@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:black_square/screens/chat_screen.dart';
 import 'package:black_square/services/call_service.dart';
 import 'package:black_square/services/chat_service.dart';
@@ -37,6 +39,10 @@ class CallScreen extends StatelessWidget {
         final missed = callService.missedCallFromPush;
 
         if (state == CallState.idle && missed == null) {
+          return const SizedBox.shrink();
+        }
+        // На Android входящий звонок показывается через CallKit (полноэкранно без push)
+        if (state == CallState.incoming && missed == null && Platform.isAndroid) {
           return const SizedBox.shrink();
         }
 

@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Обработчик фоновых push — должен быть top-level функцией
+/// Показывает полноэкранный экран звонка (CallKit) без уведомления в трее
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -14,46 +17,47 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
   final type = message.data['type'] ?? '';
   if (type == 'call') {
-    final plugin = FlutterLocalNotificationsPlugin();
-    await plugin.initialize(
-      const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
-    );
-    await plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(const AndroidNotificationChannel(
-          'black_square_calls',
-          'Входящие звонки',
-          description: 'Полноэкранный экран звонка',
-          importance: Importance.max,
-          playSound: true,
-          enableVibration: true,
-        ));
     final data = message.data;
-    final fromName = data['fromName'] ?? 'Кто-то звонит';
-    final payloadParts = [type];
-    for (final e in data.entries) {
-      payloadParts.addAll([e.key, e.value]);
+    final callId = data['callId'] ?? message.messageId ?? 'call-${message.hashCode}';
+    final fromName = data['fromName'] ?? data['sender'] ?? 'Кто-то звонит';
+    final sender = data['sender'] ?? data['from'] ?? '';
+    try {
+      await FlutterCallkitIncoming.showCallkitIncoming(
+        CallKitParams(
+          id: callId,
+          nameCaller: fromName,
+          appName: 'Black Square',
+          handle: sender,
+          type: 1, // video
+          duration: 45000,
+          textAccept: 'Принять',
+          textDecline: 'Отклонить',
+          callingNotification: const NotificationParams(
+            showNotification: false,
+            isShowCallback: false,
+          ),
+          missedCallNotification: const NotificationParams(
+            showNotification: true,
+            isShowCallback: true,
+            subtitle: 'Пропущенный звонок',
+            callbackText: 'Перезвонить',
+          ),
+          extra: data,
+          android: const AndroidParams(
+            isCustomNotification: true,
+            isShowFullLockedScreen: true,
+            ringtonePath: 'system_ringtone_default',
+            backgroundColor: '#0A0A0A',
+            actionColor: '#6B8AFF',
+            textColor: '#ffffff',
+            incomingCallNotificationChannelName: 'Входящие звонки',
+            missedCallNotificationChannelName: 'Пропущенные',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (kDebugMode) debugPrint('CallKit background error: $e');
     }
-    final payload = payloadParts.join('|');
-    const androidDetails = AndroidNotificationDetails(
-      'black_square_calls',
-      'Входящие звонки',
-      channelDescription: 'Полноэкранный экран звонка',
-      importance: Importance.max,
-      priority: Priority.max,
-      fullScreenIntent: true,
-      playSound: true,
-      enableVibration: true,
-      category: AndroidNotificationCategory.call,
-    );
-    const details = NotificationDetails(android: androidDetails);
-    await plugin.show(
-      message.hashCode.abs() % 0x7FFFFFFF,
-      'Входящий звонок',
-      fromName,
-      details,
-      payload: payload,
-    );
   }
 }
 

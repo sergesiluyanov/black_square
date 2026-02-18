@@ -259,8 +259,6 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const AppLogo(size: 120),
-            const SizedBox(height: 24),
             const Text(
               'Нет чатов',
               style: TextStyle(

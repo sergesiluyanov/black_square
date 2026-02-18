@@ -407,14 +407,13 @@ class ChatService {
   }
 
   /// Создать новый чат
-  Future<Chat> createChat(String name, {String? recipientId, String? shareCode, String? myDisplayName}) async {
+  Future<Chat> createChat(String name, {String? recipientId, String? shareCode}) async {
     final code = shareCode ?? _generateShareCode();
     final chat = Chat(
       id: _uuid.v4(),
       name: name,
       recipientId: recipientId,
       shareCode: code,
-      myDisplayName: myDisplayName,
       lastMessageAt: DateTime.now(),
     );
     await _saveChat(chat);
@@ -438,15 +437,6 @@ class ChatService {
 
   void _emitChatsUpdated() {
     _chatsUpdatedController.add(null);
-  }
-
-  /// Обновить «Ваше имя» для чата (отображается при звонках)
-  Future<void> updateChatMyDisplayName(String chatId, String? myDisplayName) async {
-    final chats = await getChats();
-    final chat = chats.where((c) => c.id == chatId).firstOrNull;
-    if (chat == null) return;
-    await _saveChat(chat.copyWith(myDisplayName: myDisplayName));
-    _emitChatsUpdated();
   }
 
   Future<void> markChatAsRead(String chatId) async {

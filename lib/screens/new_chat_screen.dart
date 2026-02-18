@@ -14,14 +14,12 @@ class NewChatScreen extends StatefulWidget {
 
 class _NewChatScreenState extends State<NewChatScreen> {
   final _nameController = TextEditingController();
-  final _myNameController = TextEditingController();
   final _recipientIdController = TextEditingController();
   bool _isLoading = false;
 
   @override
   void dispose() {
     _nameController.dispose();
-    _myNameController.dispose();
     _recipientIdController.dispose();
     super.dispose();
   }
@@ -30,7 +28,6 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
 
-    final myDisplayName = _myNameController.text.trim();
     final recipientId = _recipientIdController.text.trim();
     if (recipientId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -44,11 +41,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final chat = await context.read<ChatService>().createChat(
-        name,
-        recipientId: recipientId,
-        myDisplayName: myDisplayName.isNotEmpty ? myDisplayName : null,
-      );
+      final chat = await context.read<ChatService>().createChat(name, recipientId: recipientId);
       if (mounted) Navigator.pop(context, chat);
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -143,26 +136,6 @@ class _NewChatScreenState extends State<NewChatScreen> {
                 labelText: 'Имя контакта',
                 labelStyle: const TextStyle(color: Colors.white54),
                 hintText: 'Введите имя',
-                hintStyle: const TextStyle(color: Colors.white24),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF333333)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF6B8AFF), width: 2),
-                ),
-              ),
-              onSubmitted: (_) => _createChat(),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _myNameController,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
-              decoration: InputDecoration(
-                labelText: 'Ваше имя (для звонков)',
-                labelStyle: const TextStyle(color: Colors.white54),
-                hintText: 'Как вас называть при звонке',
                 hintStyle: const TextStyle(color: Colors.white24),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),

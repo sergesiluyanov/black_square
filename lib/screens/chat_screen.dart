@@ -180,50 +180,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _showEditMyNameDialog(BuildContext context) async {
-    final chatService = context.read<ChatService>();
-    final controller = TextEditingController(text: _chat.myDisplayName ?? '');
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'Ваше имя для звонков',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Как вас называть при звонке',
-            hintStyle: const TextStyle(color: Colors.white38),
-            enabledBorder: OutlineInputBorder(
-              borderSide: const BorderSide(color: Color(0xFF333333)),
-            ),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена', style: TextStyle(color: Colors.white54)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Сохранить', style: TextStyle(color: Color(0xFF6B8AFF))),
-          ),
-        ],
-      ),
-    );
-    if (result != null && mounted) {
-      final value = result.isEmpty ? null : result;
-      await chatService.updateChatMyDisplayName(_chat.id, value);
-      if (mounted) {
-        setState(() => _chat = _chat.copyWith(myDisplayName: value));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -252,11 +208,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.badge_outlined, color: Colors.white54),
-            onPressed: () => _showEditMyNameDialog(context),
-            tooltip: 'Ваше имя для звонков',
-          ),
           if (_chat.recipientId != null)
             IconButton(
               icon: const Icon(Icons.call, color: Color(0xFF6B8AFF)),
@@ -275,7 +226,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 callService.startCall(
                   _chat.recipientId!,
                   _chat.name,
-                  callerName: _chat.myDisplayName ?? 'Собеседник',
+                  callerName: _chat.name,
                 );
               },
             ),

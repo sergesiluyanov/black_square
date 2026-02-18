@@ -20,7 +20,11 @@ Future<void> _onCallBack(BuildContext context, CallService callService) async {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
     );
-    callService.startCall(missed.senderId, missed.senderName);
+    callService.startCall(
+      missed.senderId,
+      missed.senderName,
+      callerName: chat.myDisplayName ?? 'Собеседник',
+    );
   }
 }
 

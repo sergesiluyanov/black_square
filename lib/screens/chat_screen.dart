@@ -28,15 +28,18 @@ class _ChatScreenState extends State<ChatScreen> {
   StreamSubscription<Message>? _messageSubscription;
   StreamSubscription<Message>? _messageUpdatedSubscription;
 
+  late Chat _chat;
+
   @override
   void initState() {
     super.initState();
+    _chat = _chat;
     final chatService = context.read<ChatService>();
-    chatService.setCurrentChatId(widget.chat.id);
-    chatService.markChatAsRead(widget.chat.id);
+    chatService.setCurrentChatId(_chat.id);
+    chatService.markChatAsRead(_chat.id);
     _loadMessages();
     _messageSubscription = chatService.incomingMessages.listen((msg) {
-      if (msg.chatId == widget.chat.id && mounted) {
+      if (msg.chatId == _chat.id && mounted) {
         setState(() {
           _messages = [..._messages, msg];
           _newMessageIds.add(msg.id);
@@ -45,7 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
     _messageUpdatedSubscription = chatService.messageUpdated.listen((msg) {
-      if (msg.chatId == widget.chat.id && mounted) {
+      if (msg.chatId == _chat.id && mounted) {
         final i = _messages.indexWhere((m) => m.id == msg.id);
         if (i >= 0) {
           setState(() => _messages = [..._messages]..[i] = msg);
@@ -67,7 +70,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadMessages() async {
     final chatService = context.read<ChatService>();
-    final messages = await chatService.getMessages(widget.chat.id);
+    final messages = await chatService.getMessages(_chat.id);
     setState(() {
       _messages = messages;
       _isLoading = false;
@@ -94,7 +97,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _controller.clear();
     final chatService = context.read<ChatService>();
-    final message = await chatService.sendMessage(widget.chat.id, text);
+    final message = await chatService.sendMessage(_chat.id, text);
     setState(() => _messages = [..._messages, message]);
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
@@ -130,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     try {
-      final message = await chatService.sendFile(widget.chat.id, file);
+      final message = await chatService.sendFile(_chat.id, file);
       if (!mounted) return;
       setState(() => _messages = [..._messages, message]);
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -177,6 +180,50 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _showEditMyNameDialog(BuildContext context) async {
+    final chatService = context.read<ChatService>();
+    final controller = TextEditingController(text: _chat.myDisplayName ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Ваше имя для звонков',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Как вас называть при звонке',
+            hintStyle: const TextStyle(color: Colors.white38),
+            enabledBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: Color(0xFF333333)),
+            ),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Сохранить', style: TextStyle(color: Color(0xFF6B8AFF))),
+          ),
+        ],
+      ),
+    );
+    if (result != null && mounted) {
+      final value = result.isEmpty ? null : result;
+      await chatService.updateChatMyDisplayName(_chat.id, value);
+      if (mounted) {
+        setState(() => _chat = _chat.copyWith(myDisplayName: value));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -193,19 +240,24 @@ class _ChatScreenState extends State<ChatScreen> {
             CircleAvatar(
               backgroundColor: const Color(0xFF1A1A1A),
               child: Text(
-                widget.chat.name.isNotEmpty ? widget.chat.name[0].toUpperCase() : '?',
+                _chat.name.isNotEmpty ? _chat.name[0].toUpperCase() : '?',
                 style: const TextStyle(color: Color(0xFF6B8AFF), fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(width: 12),
             Text(
-              widget.chat.name,
+              _chat.name,
               style: const TextStyle(color: Colors.white, fontSize: 18),
             ),
           ],
         ),
         actions: [
-          if (widget.chat.recipientId != null)
+          IconButton(
+            icon: const Icon(Icons.badge_outlined, color: Colors.white54),
+            onPressed: () => _showEditMyNameDialog(context),
+            tooltip: 'Ваше имя для звонков',
+          ),
+          if (_chat.recipientId != null)
             IconButton(
               icon: const Icon(Icons.call, color: Color(0xFF6B8AFF)),
               onPressed: () {
@@ -221,8 +273,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   return;
                 }
                 callService.startCall(
-                  widget.chat.recipientId!,
-                  widget.chat.name,
+                  _chat.recipientId!,
+                  _chat.name,
+                  callerName: _chat.myDisplayName ?? 'Собеседник',
                 );
               },
             ),

@@ -216,7 +216,8 @@ wss.on('connection', (ws, req) => {
           }
           // Push только когда получатель офлайн — иначе экран звонка показывается сразу через WebSocket
           if (msg.type === 'call-offer' && callConnected.length === 0) {
-            sendCallPush(callTo, userId, null, msg.callId).catch(() => {});
+            const fromName = msg.callerName || null;
+            sendCallPush(callTo, userId, fromName, msg.callId).catch(() => {});
           }
           if (callConnected.length === 0) {
             if (msg.type === 'call-offer') {

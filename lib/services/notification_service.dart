@@ -19,7 +19,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (type == 'call') {
     final data = message.data;
     final callId = data['callId'] ?? message.messageId ?? 'call-${message.hashCode}';
-    final fromName = data['fromName'] ?? data['sender'] ?? 'Кто-то звонит';
+    final raw = data['fromName'] ?? '';
+    final fromName = raw.toString().trim().isNotEmpty ? raw.toString().trim() : 'Кто-то звонит';
     final sender = data['sender'] ?? data['from'] ?? '';
     try {
       await FlutterCallkitIncoming.showCallkitIncoming(

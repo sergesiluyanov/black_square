@@ -462,7 +462,7 @@ class CallService extends ChangeNotifier {
     _setState(CallState.connected);
   }
 
-  Future<void> startCall(String recipientId, String recipientName) async {
+  Future<void> startCall(String recipientId, String recipientName, {String? callerName}) async {
     if (_state != CallState.idle || !_ws.isConnected) return;
 
     _lastError = null;
@@ -550,6 +550,7 @@ class CallService extends ChangeNotifier {
         'type': 'call-offer',
         'to': recipientId,
         'callId': callId,
+        'callerName': callerName ?? 'Собеседник',
         'sdp': {
           'type': offer.type,
           'sdp': offer.sdp,

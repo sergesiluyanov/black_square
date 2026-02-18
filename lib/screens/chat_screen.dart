@@ -33,7 +33,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _chat = _chat;
+    _chat = widget.chat;
     final chatService = context.read<ChatService>();
     chatService.setCurrentChatId(_chat.id);
     chatService.markChatAsRead(_chat.id);

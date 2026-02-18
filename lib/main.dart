@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:black_square/screens/splash_screen.dart';
 import 'package:black_square/screens/chat_screen.dart';
 import 'package:black_square/screens/call_screen.dart';
+import 'package:black_square/services/call_launch_service.dart';
 import 'package:black_square/services/call_service.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:black_square/services/notification_service.dart';
@@ -33,6 +34,13 @@ void main() async {
     ),
   );
 
+  // Проверяем launch intent до подключения WebSocket — приложение могло быть
+  // запущено принятием звонка из killed state
+  CallLaunchData? launchCallData;
+  if (Platform.isAndroid) {
+    launchCallData = await getLaunchIntentCallData();
+  }
+
   final chatService = ChatService();
   try {
     await chatService.initialize().timeout(
@@ -45,6 +53,9 @@ void main() async {
 
   final callService = CallService(chatService);
   callService.init();
+  if (launchCallData != null) {
+    callService.setPendingAcceptFromLaunch(launchCallData.callId, launchCallData.from);
+  }
 
   runApp(
     MultiProvider(
@@ -52,7 +63,7 @@ void main() async {
         Provider<ChatService>.value(value: chatService),
         ChangeNotifierProvider<CallService>.value(value: callService),
       ],
-      child: _NotificationHandler(
+        child: _NotificationHandler(
         navigatorKey: _navigatorKey,
         child: const BlackSquareApp(),
       ),

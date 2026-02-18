@@ -119,6 +119,13 @@ class CallService extends ChangeNotifier {
 
   /// Пропущенный звонок из push — показываем экран «Перезвонить»
   ({String senderId, String senderName})? missedCallFromPush;
+
+  /// Принятие звонка при запуске из killed state (данные из launch intent)
+  ({String callId, String from})? _pendingAcceptFromLaunch;
+  void setPendingAcceptFromLaunch(String callId, String from) {
+    _pendingAcceptFromLaunch = (callId: callId, from: from);
+    if (kDebugMode) debugPrint('CallService: pending accept from launch callId=$callId from=$from');
+  }
   void showMissedCallFromPush(String senderId, String senderName) {
     missedCallFromPush = (senderId: senderId, senderName: senderName);
     notifyListeners();
@@ -293,18 +300,27 @@ class CallService extends ChangeNotifier {
           );
           _pendingOffer = {'callId': callId, 'from': from, 'sdp': msg['sdp']};
           _setState(CallState.incoming);
-          _showCallKit(callId, from, from);
-          _getRemoteName(from).then((name) {
-            if (_currentCall != null && _currentCall!.remoteUserId == from) {
-              _currentCall = CallInfo(
-                callId: _currentCall!.callId,
-                remoteUserId: from,
-                remoteName: name,
-                isIncoming: true,
-              );
-              notifyListeners();
-            }
-          });
+
+          // Если приложение запущено принятием звонка из killed — сразу принимаем
+          final pending = _pendingAcceptFromLaunch;
+          if (pending != null && pending.callId == callId && pending.from == from) {
+            _pendingAcceptFromLaunch = null;
+            if (kDebugMode) debugPrint('CallService: auto-accept from launch intent');
+            acceptCall();
+          } else {
+            _showCallKit(callId, from, from);
+            _getRemoteName(from).then((name) {
+              if (_currentCall != null && _currentCall!.remoteUserId == from) {
+                _currentCall = CallInfo(
+                  callId: _currentCall!.callId,
+                  remoteUserId: from,
+                  remoteName: name,
+                  isIncoming: true,
+                );
+                notifyListeners();
+              }
+            });
+          }
         }
         break;
       case 'call-answer':

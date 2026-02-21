@@ -13,41 +13,18 @@ class NewChatScreen extends StatefulWidget {
 }
 
 class _NewChatScreenState extends State<NewChatScreen> {
-  final _myNameController = TextEditingController();
   final _nameController = TextEditingController();
   final _recipientIdController = TextEditingController();
   bool _isLoading = false;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final myName = context.read<ChatService>().displayName;
-      if (myName.isNotEmpty) _myNameController.text = myName;
-    });
-  }
-
-  @override
   void dispose() {
-    _myNameController.dispose();
     _nameController.dispose();
     _recipientIdController.dispose();
     super.dispose();
   }
 
   Future<void> _createChat() async {
-    final myName = _myNameController.text.trim();
-    if (myName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Введите ваше имя — оно отображается в пушах при звонках и сообщениях'),
-          backgroundColor: Color(0xFF333333),
-        ),
-      );
-      return;
-    }
-
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
 
@@ -75,9 +52,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final chatService = context.read<ChatService>();
-      await chatService.setDisplayName(myName);
-      final chat = await chatService.createChat(name, recipientId: recipientId);
+      final chat = await context.read<ChatService>().createChat(name, recipientId: recipientId);
       if (mounted) Navigator.pop(context, chat);
     } on Exception catch (e) {
       if (mounted) {
@@ -174,28 +149,6 @@ class _NewChatScreenState extends State<NewChatScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            TextField(
-              controller: _myNameController,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
-              decoration: InputDecoration(
-                labelText: 'Ваше имя',
-                helperText: 'Отображается в пушах при звонках и сообщениях',
-                helperStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
-                labelStyle: const TextStyle(color: Colors.white54),
-                hintText: 'Как вас видит собеседник',
-                hintStyle: const TextStyle(color: Colors.white24),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF333333)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF6B8AFF), width: 2),
-                ),
-              ),
-              onSubmitted: (_) => _createChat(),
-            ),
-            const SizedBox(height: 16),
             TextField(
               controller: _nameController,
               style: const TextStyle(color: Colors.white, fontSize: 18),

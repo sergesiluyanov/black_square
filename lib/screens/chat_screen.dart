@@ -226,7 +226,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 callService.startCall(
                   _chat.recipientId!,
                   _chat.name,
-                  callerName: _chat.name,
+                  callerName: null, // Имя покажет получатель из своего чата через _getRemoteName
                 );
               },
             ),

@@ -181,11 +181,14 @@ class CallService extends ChangeNotifier {
     return userId;
   }
 
+  /// Отправляет «Звонок пропущен» только когда мы получатель (отклонили/пропустили).
+  /// Звонящему это сообщение не показываем.
   void _sendMissedCallMessageIfNeeded() {
     if (_currentCall == null || _state == CallState.connected) return;
+    if (!_currentCall!.isIncoming) return; // мы звонящий — не отправляем
     final remoteUserId = _currentCall!.remoteUserId;
-    _chatService.sendMissedCallMessage(remoteUserId).catchError((e) {
-      if (kDebugMode) debugPrint('CallService: sendMissedCallMessage error $e');
+    _chatService.addLocalMissedCallMessage(remoteUserId).catchError((e) {
+      if (kDebugMode) debugPrint('CallService: addLocalMissedCallMessage error $e');
     });
   }
 
@@ -216,8 +219,8 @@ class CallService extends ChangeNotifier {
         if (body != null) {
           final from = body['from'] ?? body['sender'] ?? body['handle'];
           if (from != null && from.toString().isNotEmpty) {
-            _chatService.sendMissedCallMessage(from.toString()).catchError((e) {
-              if (kDebugMode) debugPrint('CallService: sendMissedCallMessage (callback) error $e');
+            _chatService.addLocalMissedCallMessage(from.toString()).catchError((e) {
+              if (kDebugMode) debugPrint('CallService: addLocalMissedCallMessage (callback) error $e');
             });
           }
         }
@@ -379,7 +382,7 @@ class CallService extends ChangeNotifier {
       case 'call-hangup':
       case 'call-reject':
         if (_currentCall?.callId == callId) {
-          _sendMissedCallMessageIfNeeded();
+          // Не отправляем «Звонок пропущен» — мы звонящий, собеседнику не нужно
           _cleanupConnection();
           _setState(CallState.ended);
           _hideCallKit();

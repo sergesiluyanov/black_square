@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:provider/provider.dart';
 
-/// Экран активного или входящего звонка
+/// Экран активного или входящего звонка.
+/// Показывается только в foreground — при свёрнутом/закрытом приложении не отображается.
 class CallScreen extends StatefulWidget {
   const CallScreen({super.key});
 
@@ -16,9 +17,18 @@ class CallScreen extends StatefulWidget {
 class _CallScreenState extends State<CallScreen> {
   @override
   Widget build(BuildContext context) {
+    final appLifecycle = context.read<ValueNotifier<AppLifecycleState>>();
+    final isForeground = appLifecycle.value == AppLifecycleState.resumed;
+
     return ListenableBuilder(
-      listenable: context.watch<CallService>(),
+      listenable: Listenable.merge([
+        context.read<CallService>(),
+        appLifecycle,
+      ]),
       builder: (context, _) {
+        if (!isForeground) {
+          return const SizedBox.shrink();
+        }
         final callService = context.read<CallService>();
         final state = callService.state;
         final call = callService.currentCall;

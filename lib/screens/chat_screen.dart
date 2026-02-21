@@ -111,7 +111,7 @@ class _ChatScreenState extends State<ChatScreen> {
     callService.startCall(
       _chat.recipientId!,
       _chat.name,
-      callerName: myName.isNotEmpty ? myName : null,
+      callerName: myName.isNotEmpty ? myName : 'Собеседник',
     );
   }
 

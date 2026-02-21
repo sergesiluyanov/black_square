@@ -100,7 +100,7 @@ class NotificationService {
   ({String? type, Map<String, String> data})? _pendingTap;
 
   /// Данные ожидающего тапа (для навигации после splash)
-  ({String type, Map<String, String> data})? get pendingTap => _pendingTap;
+  ({String? type, Map<String, String> data})? get pendingTap => _pendingTap;
 
   Future<void> initialize() async {
     if (!Platform.isAndroid) return;

@@ -1,69 +1,19 @@
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_callkit_incoming/entities/entities.dart';
-import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-/// Обработчик фоновых push — должен быть top-level функцией
-/// Показывает полноэкранный экран звонка (CallKit) без уведомления в трее
+/// Обработчик фоновых push — top-level функция
+/// Звонок в фоне: только notification с именем (экран звонка только в foreground)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   if (kDebugMode) {
     debugPrint('FCM background: ${message.messageId} type=${message.data['type']}');
   }
-  final type = message.data['type'] ?? '';
-  if (type == 'call') {
-    final data = message.data;
-    final callId = data['callId'] ?? message.messageId ?? 'call-${message.hashCode}';
-    final raw = data['fromName'] ?? '';
-    final fromName = raw.toString().trim().isNotEmpty ? raw.toString().trim() : 'Кто-то звонит';
-    final sender = data['sender'] ?? data['from'] ?? '';
-    try {
-      final locale = ui.PlatformDispatcher.instance.locale.languageCode;
-      final textAccept = locale == 'ru' ? 'Ответить' : 'Answer';
-      final textDecline = locale == 'ru' ? 'Отклонить' : 'Decline';
-      await FlutterCallkitIncoming.showCallkitIncoming(
-        CallKitParams(
-          id: callId,
-          nameCaller: fromName,
-          appName: 'Black Square',
-          handle: sender,
-          type: 0, // audio — не video, чтобы показывать «Ответить» вместо иконки video
-          duration: 45000,
-          textAccept: textAccept,
-          textDecline: textDecline,
-          callingNotification: const NotificationParams(
-            showNotification: false,
-            isShowCallback: false,
-          ),
-          missedCallNotification: const NotificationParams(
-            showNotification: true,
-            isShowCallback: true,
-            subtitle: 'Пропущенный звонок',
-            callbackText: 'Перезвонить',
-          ),
-          extra: data,
-          android: const AndroidParams(
-            isCustomNotification: true,
-            isShowFullLockedScreen: true,
-            ringtonePath: 'ringtone_positive',
-            backgroundColor: '#0A0A0A',
-            actionColor: '#6B8AFF',
-            textColor: '#ffffff',
-            incomingCallNotificationChannelName: 'Входящие звонки',
-            missedCallNotificationChannelName: 'Пропущенные',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (kDebugMode) debugPrint('CallKit background error: $e');
-    }
-  }
+  // Звонок в фоне — FCM покажет notification с именем, CallKit не показываем
 }
 
 /// Сервис push-уведомлений (FCM + локальные для foreground)
@@ -172,59 +122,14 @@ class NotificationService {
     }
     final type = message.data['type'] ?? '';
     if (type == 'call') {
-      _showCallKitForForegroundCall(message.data);
+      // В foreground звонок придёт по WebSocket — push не показываем
       return;
     }
     if (type == 'message') {
-      // Та же логика, что и со звонками: в foreground не показываем push — сообщение придёт по WebSocket
+      // В foreground сообщение придёт по WebSocket — push не показываем
       return;
     }
     _showLocalNotification(message);
-  }
-
-  void _showCallKitForForegroundCall(Map<String, dynamic> data) {
-    final callId = (data['callId'] ?? data['id'] ?? 'call-fg').toString();
-    final raw = data['fromName'] ?? '';
-    final fromName = raw.toString().trim().isNotEmpty ? raw.toString().trim() : 'Кто-то звонит';
-    final sender = data['sender'] ?? data['from'] ?? '';
-    final locale = ui.PlatformDispatcher.instance.locale.languageCode;
-    final textAccept = locale == 'ru' ? 'Ответить' : 'Answer';
-    final textDecline = locale == 'ru' ? 'Отклонить' : 'Decline';
-    FlutterCallkitIncoming.showCallkitIncoming(
-      CallKitParams(
-        id: callId,
-        nameCaller: fromName,
-        appName: 'Black Square',
-        handle: sender,
-        type: 0,
-        duration: 45000,
-        textAccept: textAccept,
-        textDecline: textDecline,
-        callingNotification: const NotificationParams(
-          showNotification: false,
-          isShowCallback: false,
-        ),
-        missedCallNotification: const NotificationParams(
-          showNotification: true,
-          isShowCallback: true,
-          subtitle: 'Пропущенный звонок',
-          callbackText: 'Перезвонить',
-        ),
-        extra: data,
-        android: const AndroidParams(
-          isCustomNotification: true,
-          isShowFullLockedScreen: true,
-          ringtonePath: 'ringtone_positive',
-          backgroundColor: '#0A0A0A',
-          actionColor: '#6B8AFF',
-          textColor: '#ffffff',
-          incomingCallNotificationChannelName: 'Входящие звонки',
-          missedCallNotificationChannelName: 'Пропущенные',
-        ),
-      ),
-    ).catchError((e) {
-      if (kDebugMode) debugPrint('CallKit foreground error: $e');
-    });
   }
 
   void _handleMessageOpenedApp(RemoteMessage message) {

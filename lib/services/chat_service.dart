@@ -538,6 +538,19 @@ class ChatService {
     }
   }
 
+  /// Отправить системное сообщение «Звонок пропущен» в чат с [recipientId].
+  /// Используется при отклонении/пропуске звонка без входа в приложение.
+  Future<void> sendMissedCallMessage(String recipientId) async {
+    final chats = await getChats();
+    final chat = chats.where((c) => c.recipientId == recipientId).firstOrNull;
+    if (chat == null || chat.shareCode == null) return;
+    try {
+      await sendMessage(chat.id, 'Звонок пропущен');
+    } catch (e) {
+      if (kDebugMode) debugPrint('ChatService: sendMissedCallMessage error $e');
+    }
+  }
+
   /// Отправить текстовое сообщение
   Future<Message> sendMessage(String chatId, String content) async {
     final message = Message(

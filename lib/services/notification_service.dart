@@ -160,9 +160,61 @@ class NotificationService {
     if (kDebugMode) {
       debugPrint('FCM foreground: ${message.messageId} type=${message.data['type']}');
     }
-    // Звонки не показываем как push — CallService сразу показывает экран и играет мелодию
-    if (message.data['type'] == 'call') return;
+    final type = message.data['type'] ?? '';
+    if (type == 'call') {
+      _showCallKitForForegroundCall(message.data);
+      return;
+    }
+    if (type == 'message') {
+      // Та же логика, что и со звонками: в foreground не показываем push — сообщение придёт по WebSocket
+      return;
+    }
     _showLocalNotification(message);
+  }
+
+  void _showCallKitForForegroundCall(Map<String, dynamic> data) {
+    final callId = (data['callId'] ?? data['id'] ?? 'call-fg').toString();
+    final raw = data['fromName'] ?? '';
+    final fromName = raw.toString().trim().isNotEmpty ? raw.toString().trim() : 'Кто-то звонит';
+    final sender = data['sender'] ?? data['from'] ?? '';
+    final locale = ui.PlatformDispatcher.instance.locale.languageCode;
+    final textAccept = locale == 'ru' ? 'Ответить' : 'Answer';
+    final textDecline = locale == 'ru' ? 'Отклонить' : 'Decline';
+    FlutterCallkitIncoming.showCallkitIncoming(
+      CallKitParams(
+        id: callId,
+        nameCaller: fromName,
+        appName: 'Black Square',
+        handle: sender,
+        type: 0,
+        duration: 45000,
+        textAccept: textAccept,
+        textDecline: textDecline,
+        callingNotification: const NotificationParams(
+          showNotification: false,
+          isShowCallback: false,
+        ),
+        missedCallNotification: const NotificationParams(
+          showNotification: true,
+          isShowCallback: true,
+          subtitle: 'Пропущенный звонок',
+          callbackText: 'Перезвонить',
+        ),
+        extra: data,
+        android: const AndroidParams(
+          isCustomNotification: true,
+          isShowFullLockedScreen: true,
+          ringtonePath: 'ringtone_positive',
+          backgroundColor: '#0A0A0A',
+          actionColor: '#6B8AFF',
+          textColor: '#ffffff',
+          incomingCallNotificationChannelName: 'Входящие звонки',
+          missedCallNotificationChannelName: 'Пропущенные',
+        ),
+      ),
+    ).catchError((e) {
+      if (kDebugMode) debugPrint('CallKit foreground error: $e');
+    });
   }
 
   void _handleMessageOpenedApp(RemoteMessage message) {

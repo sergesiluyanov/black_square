@@ -29,7 +29,7 @@ void main() async {
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF0A0A0A),
+      systemNavigationBarColor: Colors.black,
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
@@ -147,12 +147,12 @@ class BlackSquareApp extends StatelessWidget {
         brightness: Brightness.dark,
         colorScheme: ColorScheme.dark(
           primary: const Color(0xFF6B8AFF),
-          surface: const Color(0xFF0A0A0A),
+          surface: Colors.black,
           onSurface: Colors.white,
         ),
-        scaffoldBackgroundColor: const Color(0xFF0A0A0A),
+        scaffoldBackgroundColor: Colors.black,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF0A0A0A),
+          backgroundColor: Colors.black,
           elevation: 0,
         ),
       ),

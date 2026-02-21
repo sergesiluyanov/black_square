@@ -185,6 +185,14 @@ class CallService extends ChangeNotifier {
     return userId;
   }
 
+  void _sendMissedCallMessageIfNeeded() {
+    if (_currentCall == null || _state == CallState.connected) return;
+    final remoteUserId = _currentCall!.remoteUserId;
+    _chatService.sendMissedCallMessage(remoteUserId).catchError((e) {
+      if (kDebugMode) debugPrint('CallService: sendMissedCallMessage error $e');
+    });
+  }
+
   void _onCallKitEvent(CallEvent? event) {
     if (event == null || _currentCall == null) return;
     final body = event.body is Map ? event.body as Map : null;
@@ -197,10 +205,12 @@ class CallService extends ChangeNotifier {
         break;
       case Event.actionCallDecline:
       case Event.actionCallEnded:
+        _sendMissedCallMessageIfNeeded();
         rejectCall();
         _hideCallKit();
         break;
       case Event.actionCallTimeout:
+        _sendMissedCallMessageIfNeeded();
         _cleanupConnection();
         _setState(CallState.ended);
         _hideCallKit();
@@ -211,6 +221,9 @@ class CallService extends ChangeNotifier {
           final from = body['from'] ?? body['sender'] ?? body['handle'];
           final name = body['nameCaller'] ?? body['fromName'] ?? from;
           if (from != null && from.toString().isNotEmpty) {
+            _chatService.sendMissedCallMessage(from.toString()).catchError((e) {
+              if (kDebugMode) debugPrint('CallService: sendMissedCallMessage (callback) error $e');
+            });
             showMissedCallFromPush(from.toString(), name?.toString() ?? from.toString());
           }
         }
@@ -372,6 +385,7 @@ class CallService extends ChangeNotifier {
       case 'call-hangup':
       case 'call-reject':
         if (_currentCall?.callId == callId) {
+          _sendMissedCallMessageIfNeeded();
           _cleanupConnection();
           _setState(CallState.ended);
           _hideCallKit();

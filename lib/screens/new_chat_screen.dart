@@ -39,10 +39,30 @@ class _NewChatScreenState extends State<NewChatScreen> {
       return;
     }
 
+    final myId = context.read<ChatService>().userId;
+    if (recipientId == myId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Нельзя создать чат с самим собой. Введите ID собеседника.'),
+          backgroundColor: Color(0xFF333333),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final chat = await context.read<ChatService>().createChat(name, recipientId: recipientId);
       if (mounted) Navigator.pop(context, chat);
+    } on Exception catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: const Color(0xFF333333),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

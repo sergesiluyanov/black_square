@@ -212,9 +212,12 @@ class ChatService {
     }
 
     if (chat == null) {
+      // Не показывать своё имя — если from == наш userId (сообщение с другого устройства),
+      // используем нейтральное название
+      final displayName = from == _userId ? 'Собеседник' : from;
       chat = Chat(
         id: _uuid.v4(),
-        name: from,
+        name: displayName,
         recipientId: from,
         shareCode: shareCode,
         lastMessageAt: timestamp ?? DateTime.now(),
@@ -408,6 +411,9 @@ class ChatService {
 
   /// Создать новый чат
   Future<Chat> createChat(String name, {String? recipientId, String? shareCode}) async {
+    if (recipientId != null && recipientId == _userId) {
+      throw Exception('Нельзя создать чат с самим собой');
+    }
     final code = shareCode ?? _generateShareCode();
     final chat = Chat(
       id: _uuid.v4(),

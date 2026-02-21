@@ -92,8 +92,8 @@ async function sendToUser(userId, message) {
 }
 
 export async function sendMessagePush(recipientId, fromId, chatId, fromName) {
-  const title = (fromName && String(fromName).trim()) ? String(fromName).trim() : 'Новое сообщение';
-  const body = title !== 'Новое сообщение' ? 'Новое сообщение' : 'У вас новое сообщение';
+  const title = fromName ? `${fromName}` : 'Новое сообщение';
+  const body = fromName ? 'Новое сообщение' : 'У вас новое сообщение';
   await sendToUser(recipientId, {
     notification: {
       title,
@@ -108,14 +108,11 @@ export async function sendMessagePush(recipientId, fromId, chatId, fromName) {
   });
 }
 
-/// Push для звонков — notification с именем + data для full-screen intent в фоне
+/// Data-only push для звонков — приложение показывает экран и мелодию (full-screen intent в фоне)
 export async function sendCallPush(recipientId, fromId, fromName, callId) {
   const name = (fromName && String(fromName).trim()) || 'Кто-то звонит';
   await sendToUser(recipientId, {
-    notification: {
-      title: name,
-      body: 'Входящий звонок',
-    },
+    dataOnly: true,
     data: {
       type: 'call',
       sender: fromId || '',

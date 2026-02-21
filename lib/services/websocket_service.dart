@@ -150,15 +150,20 @@ class WebSocketService {
     required String to,
     required String chatId,
     required String payload,
+    String? fromName,
   }) {
     if (!_isConnected || _channel == null) return;
 
-    _channel!.sink.add(jsonEncode({
+    final msg = <String, dynamic>{
       'type': 'message',
       'to': to,
       'chatId': chatId,
       'payload': payload,
-    }));
+    };
+    if (fromName != null && fromName.isNotEmpty) {
+      msg['fromName'] = fromName;
+    }
+    _channel!.sink.add(jsonEncode(msg));
   }
 
   /// Отправка произвольного JSON (для call signaling)

@@ -141,13 +141,14 @@ wss.on('connection', (ws, req) => {
           break;
 
         case 'message':
-          const { to, chatId, payload } = msg;
+          const { to, chatId, payload, fromName } = msg;
           const envelope = {
             type: 'message',
             from: userId,
             chatId,
             payload,
             timestamp: new Date().toISOString(),
+            ...(fromName && { fromName }),
           };
 
           const recipientSet = clients.get(to);
@@ -166,7 +167,7 @@ wss.on('connection', (ws, req) => {
             queue.push(envelope);
             pendingMessages.set(to, queue);
             savePending();
-            sendMessagePush(to, userId, chatId).catch(() => {});
+            sendMessagePush(to, userId, chatId, fromName).catch(() => {});
             console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (offline, queued, push sent)`);
           }
           break;

@@ -586,10 +586,12 @@ class ChatService {
           chat.shareCode!,
         );
       }
+      final fromName = (displayName.isNotEmpty) ? displayName : null;
       _ws.sendMessage(
         to: chat.recipientId!,
         chatId: chatId,
         payload: payload,
+        fromName: fromName,
       );
     }
 
@@ -660,10 +662,12 @@ class ChatService {
         payload = EncryptionService.encryptWithShareCode(jsonEncode(payloadMap), chat.shareCode!);
       }
 
+      final fromName = (displayName.isNotEmpty) ? displayName : null;
       _ws.sendMessage(
         to: chat.recipientId!,
         chatId: chatId,
         payload: payload,
+        fromName: fromName,
       );
     }
 

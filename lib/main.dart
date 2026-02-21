@@ -126,7 +126,15 @@ class _NotificationHandlerState extends State<_NotificationHandler> {
         // сервер доставит буферизованный call-offer, CallService покажет экран входящего звонка
       }
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) => doNavigate());
+    // Для сообщений — ждём завершения splash (2 сек), чтобы навигация не перезаписалась
+    final delay = type == 'message'
+        ? const Duration(milliseconds: 2100)
+        : Duration.zero;
+    if (delay > Duration.zero) {
+      Future.delayed(delay, () => WidgetsBinding.instance.addPostFrameCallback((_) => doNavigate()));
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => doNavigate());
+    }
   }
 
   @override

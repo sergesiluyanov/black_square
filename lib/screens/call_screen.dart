@@ -24,10 +24,34 @@ Future<void> _onCallBack(BuildContext context, CallService callService) async {
   }
 }
 
+Future<void> _navigateToChatAndDismiss(
+  BuildContext context,
+  CallService callService,
+  ({String senderId, String senderName}) missed,
+) async {
+  callService.dismissMissedCallFromPush();
+  if (!context.mounted) return;
+  final chatService = context.read<ChatService>();
+  final chats = await chatService.getChats();
+  final chat = chats.where((c) => c.recipientId == missed.senderId).firstOrNull;
+  if (!context.mounted) return;
+  if (chat != null) {
+    chatService.markChatAsRead(chat.id);
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
+    );
+  }
+}
+
 /// Экран активного или входящего звонка
-class CallScreen extends StatelessWidget {
+class CallScreen extends StatefulWidget {
   const CallScreen({super.key});
 
+  @override
+  State<CallScreen> createState() => _CallScreenState();
+}
+
+class _CallScreenState extends State<CallScreen> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -46,8 +70,16 @@ class CallScreen extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
+        // Пропущенный звонок из push — сразу переходим в чат, не показываем экран со знаком вопроса
+        if (state == CallState.idle && missed != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _navigateToChatAndDismiss(context, callService, missed!);
+          });
+          return const SizedBox.shrink();
+        }
+
         final displayName = call?.remoteName ?? missed?.senderName ?? '?';
-        final showMissedCall = state == CallState.idle && missed != null;
+        final showMissedCall = false; // не показываем экран «Пропущенный звонок»
         final showVideo = callService.hasVideo &&
             state != CallState.incoming &&
             state != CallState.ended;

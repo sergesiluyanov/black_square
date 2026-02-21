@@ -80,11 +80,24 @@ class ChatService {
   static const _messagesKey = 'messages';
   static const _chatsKey = 'chats';
   static const _userIdKey = 'user_id';
+  static const _displayNameKey = 'display_name';
 
   String? _userId;
   String? _currentChatId;
+  String? _displayName;
 
   String get userId => _userId ?? '';
+  String get displayName => _displayName ?? '';
+
+  Future<void> setDisplayName(String name) async {
+    _displayName = name.trim();
+    if (_displayName != null && _displayName!.isNotEmpty) {
+      await _storage.setString(_displayNameKey, _displayName!);
+    } else {
+      _displayName = null;
+      await _storage.remove(_displayNameKey);
+    }
+  }
 
   void setCurrentChatId(String? chatId) {
     _currentChatId = chatId;
@@ -105,6 +118,7 @@ class ChatService {
     await _storage.initialize();
     _userId ??= await _storage.getString(_userIdKey) ?? _uuid.v4();
     await _storage.setString(_userIdKey, _userId!);
+    _displayName = await _storage.getString(_displayNameKey);
 
     _ws.onMessage = _handleIncomingMessage;
     final fcmToken = NotificationService().fcmToken;
@@ -213,8 +227,10 @@ class ChatService {
 
     if (chat == null) {
       // Не показывать своё имя — если from == наш userId (сообщение с другого устройства),
-      // используем нейтральное название
-      final displayName = from == _userId ? 'Собеседник' : from;
+      // используем displayName или нейтральное название
+      final displayName = from == _userId
+          ? (_displayName != null && _displayName!.isNotEmpty ? _displayName! : 'Собеседник')
+          : from;
       chat = Chat(
         id: _uuid.v4(),
         name: displayName,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'dart:io';
 
 import 'package:black_square/config.dart';
@@ -230,6 +231,11 @@ class CallService extends ChangeNotifier {
     }
   }
 
+  String get _callAcceptText =>
+      ui.PlatformDispatcher.instance.locale.languageCode == 'ru' ? 'Ответить' : 'Answer';
+  String get _callDeclineText =>
+      ui.PlatformDispatcher.instance.locale.languageCode == 'ru' ? 'Отклонить' : 'Decline';
+
   Future<void> _showCallKit(String callId, String fromName, String from) async {
     if (!Platform.isAndroid) return;
     try {
@@ -239,10 +245,10 @@ class CallService extends ChangeNotifier {
           nameCaller: fromName,
           appName: 'Black Square',
           handle: from,
-          type: 1,
+          type: 0, // audio — не video, чтобы показывать «Ответить» вместо иконки video
           duration: 45000,
-          textAccept: 'Принять',
-          textDecline: 'Отклонить',
+          textAccept: _callAcceptText,
+          textDecline: _callDeclineText,
           callingNotification: const NotificationParams(
             showNotification: false,
             isShowCallback: false,

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -23,16 +24,19 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     final fromName = raw.toString().trim().isNotEmpty ? raw.toString().trim() : 'Кто-то звонит';
     final sender = data['sender'] ?? data['from'] ?? '';
     try {
+      final locale = ui.PlatformDispatcher.instance.locale.languageCode;
+      final textAccept = locale == 'ru' ? 'Ответить' : 'Answer';
+      final textDecline = locale == 'ru' ? 'Отклонить' : 'Decline';
       await FlutterCallkitIncoming.showCallkitIncoming(
         CallKitParams(
           id: callId,
           nameCaller: fromName,
           appName: 'Black Square',
           handle: sender,
-          type: 1, // video
+          type: 0, // audio — не video, чтобы показывать «Ответить» вместо иконки video
           duration: 45000,
-          textAccept: 'Принять',
-          textDecline: 'Отклонить',
+          textAccept: textAccept,
+          textDecline: textDecline,
           callingNotification: const NotificationParams(
             showNotification: false,
             isShowCallback: false,

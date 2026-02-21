@@ -292,10 +292,12 @@ class CallService extends ChangeNotifier {
       case 'call-offer':
         if (kDebugMode) debugPrint('CallService: received call-offer from $from, callId=$callId');
         if (_state == CallState.idle) {
+          final callerName = (msg['callerName'] as String?)?.trim();
+          final initialName = callerName != null && callerName.isNotEmpty ? callerName : from;
           _currentCall = CallInfo(
             callId: callId,
             remoteUserId: from,
-            remoteName: from,
+            remoteName: initialName,
             isIncoming: true,
           );
           _pendingOffer = {'callId': callId, 'from': from, 'sdp': msg['sdp']};
@@ -308,7 +310,7 @@ class CallService extends ChangeNotifier {
             if (kDebugMode) debugPrint('CallService: auto-accept from launch intent');
             acceptCall();
           } else {
-            _showCallKit(callId, from, from);
+            _showCallKit(callId, initialName, from);
             _getRemoteName(from).then((name) {
               if (_currentCall != null && _currentCall!.remoteUserId == from) {
                 _currentCall = CallInfo(

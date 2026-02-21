@@ -35,8 +35,10 @@ class MainActivity : FlutterActivity() {
     private fun getLaunchIntentCallData(): Map<String, String>? {
         val intent = intent ?: return null
         val action = intent.action ?: return null
-        val acceptAction = "${packageName}.${CallkitConstants.ACTION_CALL_ACCEPT}"
-        if (action != acceptAction) return null
+        // Plugin uses "com.hiennv.flutter_callkit_incoming.ACTION_CALL_ACCEPT" when launching via TransparentActivity
+        val acceptAction = CallkitConstants.ACTION_CALL_ACCEPT
+        val acceptActionWithPrefix = "${packageName}.${CallkitConstants.ACTION_CALL_ACCEPT}"
+        if (action != acceptAction && action != acceptActionWithPrefix) return null
 
         val bundle = intent.getBundleExtra(FlutterCallkitIncomingPlugin.EXTRA_CALLKIT_CALL_DATA)
             ?: return null

@@ -108,14 +108,15 @@ export async function sendMessagePush(recipientId, fromId, chatId, fromName) {
   });
 }
 
-/// Data-only push для звонков — приложение само показывает экран и мелодию (full-screen intent в фоне)
+/// Data-only push для звонков — приложение показывает экран и мелодию (full-screen intent в фоне)
 export async function sendCallPush(recipientId, fromId, fromName, callId) {
+  const name = (fromName && String(fromName).trim()) || 'Кто-то звонит';
   await sendToUser(recipientId, {
     dataOnly: true,
     data: {
       type: 'call',
       sender: fromId || '',
-      fromName: fromName || '',
+      fromName: name,
       callId: callId || '',
     },
   });

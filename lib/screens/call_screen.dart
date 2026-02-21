@@ -1,47 +1,9 @@
 import 'dart:io';
 
-import 'package:black_square/screens/chat_screen.dart';
 import 'package:black_square/services/call_service.dart';
-import 'package:black_square/services/chat_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:provider/provider.dart';
-
-Future<void> _onCallBack(BuildContext context, CallService callService) async {
-  final missed = callService.missedCallFromPush;
-  if (missed == null) return;
-  callService.dismissMissedCallFromPush();
-  final chatService = context.read<ChatService>();
-  final chats = await chatService.getChats();
-  final chat = chats.where((c) => c.recipientId == missed.senderId).firstOrNull;
-  if (!context.mounted) return;
-  if (chat != null) {
-    chatService.markChatAsRead(chat.id);
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
-    );
-    callService.startCall(missed.senderId, missed.senderName, callerName: missed.senderName);
-  }
-}
-
-Future<void> _navigateToChatAndDismiss(
-  BuildContext context,
-  CallService callService,
-  ({String senderId, String senderName}) missed,
-) async {
-  callService.dismissMissedCallFromPush();
-  if (!context.mounted) return;
-  final chatService = context.read<ChatService>();
-  final chats = await chatService.getChats();
-  final chat = chats.where((c) => c.recipientId == missed.senderId).firstOrNull;
-  if (!context.mounted) return;
-  if (chat != null) {
-    chatService.markChatAsRead(chat.id);
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)),
-    );
-  }
-}
 
 /// Экран активного или входящего звонка
 class CallScreen extends StatefulWidget {
@@ -60,26 +22,17 @@ class _CallScreenState extends State<CallScreen> {
         final callService = context.read<CallService>();
         final state = callService.state;
         final call = callService.currentCall;
-        final missed = callService.missedCallFromPush;
 
-        if (state == CallState.idle && missed == null) {
+        if (state == CallState.idle) {
           return const SizedBox.shrink();
         }
         // На Android входящий звонок показывается через CallKit (полноэкранно без push)
-        if (state == CallState.incoming && missed == null && Platform.isAndroid) {
+        if (state == CallState.incoming && Platform.isAndroid) {
           return const SizedBox.shrink();
         }
 
-        // Пропущенный звонок из push — сразу переходим в чат, не показываем экран со знаком вопроса
-        if (state == CallState.idle && missed != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _navigateToChatAndDismiss(context, callService, missed!);
-          });
-          return const SizedBox.shrink();
-        }
-
-        final displayName = call?.remoteName ?? missed?.senderName ?? '?';
-        final showMissedCall = false; // не показываем экран «Пропущенный звонок»
+        final displayName = call?.remoteName ?? '?';
+        const showMissedCall = false;
         final showVideo = callService.hasVideo &&
             state != CallState.incoming &&
             state != CallState.ended;
@@ -110,7 +63,7 @@ class _CallScreenState extends State<CallScreen> {
                     callService: callService,
                     showMissedCall: showMissedCall,
                     state: state,
-                    onCallBack: () => _onCallBack(context, callService),
+                    onCallBack: () {},
                   ),
                 ),
               ],

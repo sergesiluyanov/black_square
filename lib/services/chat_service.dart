@@ -586,7 +586,7 @@ class ChatService {
           chat.shareCode!,
         );
       }
-      final fromName = (displayName.isNotEmpty) ? displayName : null;
+      final fromName = displayName.isNotEmpty ? displayName : 'Собеседник';
       _ws.sendMessage(
         to: chat.recipientId!,
         chatId: chatId,
@@ -662,7 +662,7 @@ class ChatService {
         payload = EncryptionService.encryptWithShareCode(jsonEncode(payloadMap), chat.shareCode!);
       }
 
-      final fromName = (displayName.isNotEmpty) ? displayName : null;
+      final fromName = displayName.isNotEmpty ? displayName : 'Собеседник';
       _ws.sendMessage(
         to: chat.recipientId!,
         chatId: chatId,

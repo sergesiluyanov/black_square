@@ -160,8 +160,8 @@ class WebSocketService {
       'chatId': chatId,
       'payload': payload,
     };
-    if (fromName != null && fromName.isNotEmpty) {
-      msg['fromName'] = fromName;
+    if (fromName != null && fromName.toString().trim().isNotEmpty) {
+      msg['fromName'] = fromName.toString().trim();
     }
     _channel!.sink.add(jsonEncode(msg));
   }

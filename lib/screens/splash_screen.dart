@@ -1,6 +1,11 @@
+import 'package:black_square/models/chat.dart';
 import 'package:black_square/screens/chat_list_screen.dart';
+import 'package:black_square/screens/chat_screen.dart';
+import 'package:black_square/services/chat_service.dart';
+import 'package:black_square/services/notification_service.dart';
 import 'package:black_square/widgets/app_logo.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 /// Стартовый экран с анимацией иконки приложения.
 class SplashScreen extends StatefulWidget {
@@ -31,7 +36,37 @@ class _SplashScreenState extends State<SplashScreen>
     );
     _controller.forward();
 
-    Future.delayed(const Duration(milliseconds: 1800), () {
+    Future.delayed(const Duration(milliseconds: 1800), () async {
+      if (!mounted) return;
+      final pending = NotificationService().pendingTap;
+      if (pending != null && pending.type == 'message') {
+        NotificationService().clearPendingTap();
+        final chatService = Provider.of<ChatService>(context, listen: false);
+        final chatId = pending.data['chatId'];
+        final from = pending.data['sender'] ?? pending.data['from'];
+        Chat? chat;
+        for (var i = 0; i < 50 && mounted; i++) {
+          final chats = await chatService.getChats();
+          chat = chats.where((c) =>
+              (chatId != null && c.id == chatId) ||
+              (from != null && c.recipientId == from)).firstOrNull;
+          if (chat != null) break;
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
+        if (mounted && chat != null) {
+          chatService.markChatAsRead(chat.id);
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (context, anim, _) => ChatScreen(chat: chat!),
+              transitionsBuilder: (context, anim, _, child) {
+                return FadeTransition(opacity: anim, child: child);
+              },
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          );
+          return;
+        }
+      }
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(

@@ -53,6 +53,7 @@ void main() async {
 
   final callService = CallService(chatService);
   callService.init();
+  callService.dismissMissedCallFromPush(); // при открытии — главный экран, без экрана пропущенного звонка
   if (launchCallData != null) {
     callService.setPendingAcceptFromLaunch(launchCallData.callId, launchCallData.from);
   }
@@ -85,12 +86,26 @@ class _NotificationHandler extends StatefulWidget {
   State<_NotificationHandler> createState() => _NotificationHandlerState();
 }
 
-class _NotificationHandlerState extends State<_NotificationHandler> {
+class _NotificationHandlerState extends State<_NotificationHandler> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (Platform.isAndroid) {
       NotificationService().onNotificationTap = _handleNotificationTap;
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      Provider.of<CallService>(context, listen: false).dismissMissedCallFromPush();
     }
   }
 
@@ -126,15 +141,7 @@ class _NotificationHandlerState extends State<_NotificationHandler> {
         // сервер доставит буферизованный call-offer, CallService покажет экран входящего звонка
       }
     }
-    // Для сообщений — ждём завершения splash (2 сек), чтобы навигация не перезаписалась
-    final delay = type == 'message'
-        ? const Duration(milliseconds: 2100)
-        : Duration.zero;
-    if (delay > Duration.zero) {
-      Future.delayed(delay, () => WidgetsBinding.instance.addPostFrameCallback((_) => doNavigate()));
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) => doNavigate());
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => doNavigate());
   }
 
   @override

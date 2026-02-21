@@ -127,10 +127,6 @@ class CallService extends ChangeNotifier {
     _pendingAcceptFromLaunch = (callId: callId, from: from);
     if (kDebugMode) debugPrint('CallService: pending accept from launch callId=$callId from=$from');
   }
-  void showMissedCallFromPush(String senderId, String senderName) {
-    missedCallFromPush = (senderId: senderId, senderName: senderName);
-    notifyListeners();
-  }
   void dismissMissedCallFromPush() {
     missedCallFromPush = null;
     notifyListeners();
@@ -219,12 +215,10 @@ class CallService extends ChangeNotifier {
         final body = event.body is Map ? event.body as Map : null;
         if (body != null) {
           final from = body['from'] ?? body['sender'] ?? body['handle'];
-          final name = body['nameCaller'] ?? body['fromName'] ?? from;
           if (from != null && from.toString().isNotEmpty) {
             _chatService.sendMissedCallMessage(from.toString()).catchError((e) {
               if (kDebugMode) debugPrint('CallService: sendMissedCallMessage (callback) error $e');
             });
-            showMissedCallFromPush(from.toString(), name?.toString() ?? from.toString());
           }
         }
         _hideCallKit();

@@ -85,12 +85,22 @@ class NotificationService {
   set onNotificationTap(void Function(String? type, Map<String, String> data)? value) {
     _onNotificationTap = value;
     if (_pendingTap != null && value != null) {
-      value(_pendingTap!.type, _pendingTap!.data);
-      _pendingTap = null;
+      if (_pendingTap!.type != 'message') {
+        value(_pendingTap!.type, _pendingTap!.data);
+        _pendingTap = null;
+      }
+      // Для message — splash сам перейдёт в чат по pendingTap
     }
   }
 
+  void clearPendingTap() {
+    _pendingTap = null;
+  }
+
   ({String? type, Map<String, String> data})? _pendingTap;
+
+  /// Данные ожидающего тапа (для навигации после splash)
+  ({String type, Map<String, String> data})? get pendingTap => _pendingTap;
 
   Future<void> initialize() async {
     if (!Platform.isAndroid) return;

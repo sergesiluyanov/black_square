@@ -48,7 +48,7 @@ class CallScreen extends StatelessWidget {
 
         final displayName = call?.remoteName ?? missed?.senderName ?? '?';
         final showMissedCall = state == CallState.idle && missed != null;
-        final showVideo = callService.localStream != null &&
+        final showVideo = callService.hasVideo &&
             state != CallState.incoming &&
             state != CallState.ended;
 
@@ -311,7 +311,7 @@ class _CallControls extends StatelessWidget {
               ],
             ),
           ] else ...[
-            // Верхний ряд: видео и переключение камеры
+            // Верхний ряд: видео и переключение камеры (если видео включено)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -319,15 +319,17 @@ class _CallControls extends StatelessWidget {
                   icon: callService.isVideoOn ? Icons.videocam : Icons.videocam_off,
                   color: callService.isVideoOn
                       ? const Color(0xFF6B8AFF)
-                      : Colors.red,
+                      : Colors.white54,
                   onPressed: () => callService.toggleVideo(),
                 ),
-                const SizedBox(width: 24),
-                _CallButton(
-                  icon: Icons.cameraswitch,
-                  color: Colors.white54,
-                  onPressed: () => callService.switchCamera(),
-                ),
+                if (callService.hasVideo) ...[
+                  const SizedBox(width: 24),
+                  _CallButton(
+                    icon: Icons.cameraswitch,
+                    color: Colors.white54,
+                    onPressed: () => callService.switchCamera(),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 24),

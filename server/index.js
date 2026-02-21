@@ -180,6 +180,8 @@ wss.on('connection', (ws, req) => {
         case 'call-ice':
         case 'call-hangup':
         case 'call-reject':
+        case 'call-reoffer':
+        case 'call-reanswer':
           if (!userId) {
             console.warn(`[${new Date().toISOString()}] Call signal ignored: sender not authenticated`);
             break;

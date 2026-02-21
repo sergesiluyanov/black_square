@@ -110,7 +110,7 @@ class CallService extends ChangeNotifier {
   bool _isSpeakerOn = false;
   bool get isSpeakerOn => _isSpeakerOn;
 
-  bool _isVideoOn = true;
+  bool _isVideoOn = false;
   bool get isVideoOn => _isVideoOn;
 
   /// Последняя ошибка (очищается при новом звонке)
@@ -330,6 +330,16 @@ class CallService extends ChangeNotifier {
           _handleAnswer(msg['sdp']);
         }
         break;
+      case 'call-reoffer':
+        if (_currentCall?.callId == callId && _peerConnection != null) {
+          _handleReoffer(from, msg['sdp']);
+        }
+        break;
+      case 'call-reanswer':
+        if (_currentCall?.callId == callId && _peerConnection != null) {
+          _handleReanswer(msg['sdp']);
+        }
+        break;
       case 'call-ice':
         if (_currentCall?.callId != callId) break;
         final c = msg['candidate'] as Map<String, dynamic>?;
@@ -372,11 +382,8 @@ class CallService extends ChangeNotifier {
       if (Platform.isAndroid) {
         await Helper.setAndroidAudioConfiguration(AndroidAudioConfiguration.communication);
       }
-      _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': true,
-        'video': {'facingMode': 'user'},
-      });
-      await Helper.setSpeakerphoneOn(true); // видео — звук в динамик
+      _localStream = await navigator.mediaDevices.getUserMedia({'audio': true});
+      await Helper.setSpeakerphoneOn(true);
 
       _peerConnection = await createPeerConnection(_iceServers);
 
@@ -464,6 +471,36 @@ class CallService extends ChangeNotifier {
     _setState(CallState.connected);
   }
 
+  Future<void> _handleReoffer(String from, dynamic sdpMap) async {
+    if (sdpMap == null || _peerConnection == null || _currentCall == null) return;
+    try {
+      final sdp = RTCSessionDescription(sdpMap['sdp'] as String, sdpMap['type'] as String);
+      await _peerConnection!.setRemoteDescription(sdp);
+      final answer = await _peerConnection!.createAnswer({});
+      await _peerConnection!.setLocalDescription(answer);
+      _ws.send({
+        'type': 'call-reanswer',
+        'to': from,
+        'callId': _currentCall!.callId,
+        'sdp': {'type': answer.type, 'sdp': answer.sdp},
+      });
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) debugPrint('CallService: _handleReoffer error $e');
+    }
+  }
+
+  Future<void> _handleReanswer(Map<String, dynamic>? sdpMap) async {
+    if (sdpMap == null || _peerConnection == null) return;
+    try {
+      final sdp = RTCSessionDescription(sdpMap['sdp'] as String, sdpMap['type'] as String);
+      await _peerConnection!.setRemoteDescription(sdp);
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) debugPrint('CallService: _handleReanswer error $e');
+    }
+  }
+
   Future<void> startCall(String recipientId, String recipientName, {String? callerName}) async {
     if (_state != CallState.idle || !_ws.isConnected) return;
 
@@ -481,11 +518,8 @@ class CallService extends ChangeNotifier {
       if (Platform.isAndroid) {
         await Helper.setAndroidAudioConfiguration(AndroidAudioConfiguration.communication);
       }
-      _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': true,
-        'video': {'facingMode': 'user'},
-      });
-      await Helper.setSpeakerphoneOn(true); // видео — звук в динамик
+      _localStream = await navigator.mediaDevices.getUserMedia({'audio': true});
+      await Helper.setSpeakerphoneOn(true);
 
       _peerConnection = await createPeerConnection(_iceServers);
 
@@ -626,12 +660,66 @@ class CallService extends ChangeNotifier {
   }
 
   Future<void> toggleVideo() async {
-    if (_localStream == null) return;
+    if (_localStream == null || _peerConnection == null || _currentCall == null) return;
+    if (_state != CallState.connected && _state != CallState.connecting) return;
+
     _isVideoOn = !_isVideoOn;
-    for (final track in _localStream!.getVideoTracks()) {
-      track.enabled = _isVideoOn;
+    final videoTracks = _localStream!.getVideoTracks();
+
+    if (_isVideoOn) {
+      if (videoTracks.isNotEmpty) {
+        for (final t in videoTracks) {
+          t.enabled = true;
+        }
+        notifyListeners();
+        return;
+      }
+      try {
+        final videoStream = await navigator.mediaDevices.getUserMedia({'video': {'facingMode': 'user'}});
+        for (final track in videoStream.getVideoTracks()) {
+          _localStream!.addTrack(track);
+          await _peerConnection!.addTrack(track, _localStream!);
+        }
+        await _renegotiate();
+      } catch (e) {
+        if (kDebugMode) debugPrint('CallService: toggleVideo on error $e');
+        _isVideoOn = false;
+      }
+    } else {
+      if (videoTracks.isEmpty) {
+        notifyListeners();
+        return;
+      }
+      for (final track in videoTracks) {
+        _localStream!.removeTrack(track);
+        final senders = await _peerConnection!.getSenders();
+        for (final s in senders) {
+          if (s.track == track) {
+            await _peerConnection!.removeTrack(s);
+            break;
+          }
+        }
+        track.stop();
+      }
+      await _renegotiate();
     }
     notifyListeners();
+  }
+
+  Future<void> _renegotiate() async {
+    if (_peerConnection == null || _currentCall == null) return;
+    try {
+      final offer = await _peerConnection!.createOffer({});
+      await _peerConnection!.setLocalDescription(offer);
+      _ws.send({
+        'type': 'call-reoffer',
+        'to': _currentCall!.remoteUserId,
+        'callId': _currentCall!.callId,
+        'sdp': {'type': offer.type, 'sdp': offer.sdp},
+      });
+    } catch (e) {
+      if (kDebugMode) debugPrint('CallService: _renegotiate error $e');
+    }
   }
 
   Future<void> switchCamera() async {
@@ -648,4 +736,9 @@ class CallService extends ChangeNotifier {
 
   MediaStream? get localStream => _localStream;
   MediaStream? get remoteStream => _remoteStream;
+
+  /// Есть ли видео (локальное или удалённое)
+  bool get hasVideo =>
+      (_localStream?.getVideoTracks().isNotEmpty ?? false) ||
+      (_remoteStream?.getVideoTracks().isNotEmpty ?? false);
 }

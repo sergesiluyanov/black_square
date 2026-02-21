@@ -27,6 +27,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _newMessageIds = <String>{};
   StreamSubscription<Message>? _messageSubscription;
   StreamSubscription<Message>? _messageUpdatedSubscription;
+  late ChatService _chatService;
 
   late Chat _chat;
 
@@ -34,11 +35,11 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _chat = widget.chat;
-    final chatService = context.read<ChatService>();
-    chatService.setCurrentChatId(_chat.id);
-    chatService.markChatAsRead(_chat.id);
+    _chatService = context.read<ChatService>();
+    _chatService.setCurrentChatId(_chat.id);
+    _chatService.markChatAsRead(_chat.id);
     _loadMessages();
-    _messageSubscription = chatService.incomingMessages.listen((msg) {
+    _messageSubscription = _chatService.incomingMessages.listen((msg) {
       if (msg.chatId != _chat.id) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -49,7 +50,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _scrollToBottom();
       });
     });
-    _messageUpdatedSubscription = chatService.messageUpdated.listen((msg) {
+    _messageUpdatedSubscription = _chatService.messageUpdated.listen((msg) {
       if (msg.chatId != _chat.id) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -64,7 +65,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    context.read<ChatService>().setCurrentChatId(null);
+    _chatService.setCurrentChatId(null);
     _messageSubscription?.cancel();
     _messageUpdatedSubscription?.cancel();
     _controller.dispose();

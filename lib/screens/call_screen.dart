@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:black_square/app_lifecycle.dart';
 import 'package:black_square/services/call_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -17,13 +18,12 @@ class CallScreen extends StatefulWidget {
 class _CallScreenState extends State<CallScreen> {
   @override
   Widget build(BuildContext context) {
-    final appLifecycle = context.read<ValueNotifier<AppLifecycleState>>();
-    final isForeground = appLifecycle.value == AppLifecycleState.resumed;
+    final isForeground = appLifecycleNotifier.value == AppLifecycleState.resumed;
 
     return ListenableBuilder(
       listenable: Listenable.merge([
         context.read<CallService>(),
-        appLifecycle,
+        appLifecycleNotifier,
       ]),
       builder: (context, _) {
         if (!isForeground) {

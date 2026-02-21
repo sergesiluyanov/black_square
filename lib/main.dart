@@ -12,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'package:black_square/app_lifecycle.dart';
+
 final _navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
@@ -58,16 +60,13 @@ void main() async {
     callService.setPendingAcceptFromLaunch(launchCallData.callId, launchCallData.from);
   }
 
-  final appLifecycle = ValueNotifier<AppLifecycleState>(AppLifecycleState.resumed);
   runApp(
     MultiProvider(
       providers: [
         Provider<ChatService>.value(value: chatService),
         ChangeNotifierProvider<CallService>.value(value: callService),
-        Provider<ValueNotifier<AppLifecycleState>>.value(value: appLifecycle),
       ],
         child: _NotificationHandler(
-        appLifecycle: appLifecycle,
         navigatorKey: _navigatorKey,
         child: const BlackSquareApp(),
       ),
@@ -79,12 +78,10 @@ void main() async {
 class _NotificationHandler extends StatefulWidget {
   final GlobalKey<NavigatorState> navigatorKey;
   final Widget child;
-  final ValueNotifier<AppLifecycleState> appLifecycle;
 
   const _NotificationHandler({
     required this.navigatorKey,
     required this.child,
-    required this.appLifecycle,
   });
 
   @override
@@ -109,7 +106,7 @@ class _NotificationHandlerState extends State<_NotificationHandler> with Widgets
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    widget.appLifecycle.value = state;
+    appLifecycleNotifier.value = state;
     if (state == AppLifecycleState.resumed && mounted) {
       Provider.of<CallService>(context, listen: false).dismissMissedCallFromPush();
     }

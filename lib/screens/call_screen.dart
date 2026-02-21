@@ -36,10 +36,6 @@ class _CallScreenState extends State<CallScreen> {
         if (state == CallState.idle) {
           return const SizedBox.shrink();
         }
-        // На Android входящий звонок показывается через CallKit (полноэкранно без push)
-        if (state == CallState.incoming && Platform.isAndroid) {
-          return const SizedBox.shrink();
-        }
 
         final displayName = call?.remoteName ?? '?';
         const showMissedCall = false;

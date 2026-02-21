@@ -127,14 +127,20 @@ class CallService extends ChangeNotifier {
     _pendingAcceptFromLaunch = (callId: callId, from: from);
     if (kDebugMode) debugPrint('CallService: pending accept from launch callId=$callId from=$from');
   }
+  /// При открытии приложения — сбрасываем пропущенный звонок и состояние, показываем главный экран
   void dismissMissedCallFromPush() {
     missedCallFromPush = null;
-    notifyListeners();
+    if (_state != CallState.idle && _state != CallState.connected) {
+      _cleanup();
+      _setState(CallState.idle);
+    } else {
+      notifyListeners();
+    }
   }
 
   void _setState(CallState s) {
     _state = s;
-    if (s == CallState.incoming && !Platform.isAndroid) {
+    if (s == CallState.incoming) {
       FlutterRingtonePlayer().playRingtone(looping: true, asAlarm: true);
     } else {
       FlutterRingtonePlayer().stop();
@@ -327,7 +333,7 @@ class CallService extends ChangeNotifier {
             if (kDebugMode) debugPrint('CallService: auto-accept from launch intent');
             acceptCall();
           } else {
-            _showCallKit(callId, initialName, from);
+            // В foreground показываем наш CallScreen, CallKit не нужен
             _getRemoteName(from).then((nameFromChat) {
               if (_currentCall != null && _currentCall!.remoteUserId == from) {
                 // Используем имя из чата только если это не userId (есть контакт).

@@ -697,7 +697,8 @@ class CallService extends ChangeNotifier {
         notifyListeners();
         return;
       }
-      for (final track in videoTracks) {
+      final tracksToRemove = videoTracks.toList();
+      for (final track in tracksToRemove) {
         _localStream!.removeTrack(track);
         final senders = await _peerConnection!.getSenders();
         for (final s in senders) {

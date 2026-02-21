@@ -71,11 +71,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person_outline, color: Colors.white54, size: 22),
-            onPressed: () => _showMyNameDialog(context),
-            tooltip: 'Ваше имя',
-          ),
           Builder(
             builder: (context) {
               final isConnected = context.read<ChatService>().ws.isConnected;
@@ -188,59 +183,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await context.read<ChatService>().markChatAsRead(chat.id);
       if (mounted) _loadChats(silent: true);
     });
-  }
-
-  void _showMyNameDialog(BuildContext context) {
-    final chatService = context.read<ChatService>();
-    final controller = TextEditingController(text: chatService.displayName);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'Ваше имя',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Отображается при звонках',
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Введите ваше имя',
-                hintStyle: const TextStyle(color: Colors.white38),
-                filled: true,
-                fillColor: const Color(0xFF0A0A0A),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF333333)),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена', style: TextStyle(color: Colors.white54)),
-          ),
-          TextButton(
-            onPressed: () async {
-              await chatService.setDisplayName(controller.text);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Сохранить', style: TextStyle(color: Color(0xFF6B8AFF))),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showConnectionStatus(BuildContext context) {

@@ -311,12 +311,17 @@ class CallService extends ChangeNotifier {
             acceptCall();
           } else {
             _showCallKit(callId, initialName, from);
-            _getRemoteName(from).then((name) {
+            _getRemoteName(from).then((nameFromChat) {
               if (_currentCall != null && _currentCall!.remoteUserId == from) {
+                // Используем имя из чата только если это не userId (есть контакт).
+                // Иначе оставляем callerName из offer — имя звонящего.
+                final displayName = (nameFromChat != from && nameFromChat.isNotEmpty)
+                    ? nameFromChat
+                    : initialName;
                 _currentCall = CallInfo(
                   callId: _currentCall!.callId,
                   remoteUserId: from,
-                  remoteName: name,
+                  remoteName: displayName,
                   isIncoming: true,
                 );
                 notifyListeners();

@@ -91,6 +91,88 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _startCall() async {
+    final callService = context.read<CallService>();
+    if (callService.state != CallState.idle) return;
+    if (!callService.canCall) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Нет подключения к серверу. Проверьте интернет.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    var myName = context.read<ChatService>().displayName;
+    if (myName.isEmpty && mounted) {
+      myName = await _showNamePromptForCall();
+    }
+    if (!mounted) return;
+    callService.startCall(
+      _chat.recipientId!,
+      _chat.name,
+      callerName: myName.isNotEmpty ? myName : null,
+    );
+  }
+
+  /// Показывает диалог для ввода имени перед звонком. Возвращает введённое имя или ''.
+  Future<String> _showNamePromptForCall() async {
+    final chatService = context.read<ChatService>();
+    final controller = TextEditingController(text: chatService.displayName);
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Ваше имя',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Собеседник увидит это имя при звонке',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Введите ваше имя',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: const Color(0xFF0A0A0A),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF333333)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ''),
+            child: const Text('Позже', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              await chatService.setDisplayName(name);
+              if (ctx.mounted) Navigator.pop(ctx, name);
+            },
+            child: const Text('Сохранить и позвонить', style: TextStyle(color: Color(0xFF6B8AFF))),
+          ),
+        ],
+      ),
+    );
+    return result ?? '';
+  }
+
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
@@ -211,25 +293,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (_chat.recipientId != null)
             IconButton(
               icon: const Icon(Icons.call, color: Color(0xFF6B8AFF)),
-              onPressed: () {
-                final callService = context.read<CallService>();
-                if (callService.state != CallState.idle) return;
-                if (!callService.canCall) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Нет подключения к серверу. Проверьте интернет.'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-                final myName = context.read<ChatService>().displayName;
-                callService.startCall(
-                  _chat.recipientId!,
-                  _chat.name,
-                  callerName: myName.isNotEmpty ? myName : null,
-                );
-              },
+              onPressed: () => _startCall(),
             ),
         ],
       ),

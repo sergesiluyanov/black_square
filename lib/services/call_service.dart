@@ -293,7 +293,8 @@ class CallService extends ChangeNotifier {
         if (kDebugMode) debugPrint('CallService: received call-offer from $from, callId=$callId');
         if (_state == CallState.idle) {
           final callerName = (msg['callerName'] as String?)?.trim();
-          final initialName = callerName != null && callerName.isNotEmpty ? callerName : from;
+          final initialName = (callerName != null && callerName.isNotEmpty) ? callerName : from;
+          if (kDebugMode) debugPrint('CallService: call-offer callerName=$callerName initialName=$initialName');
           _currentCall = CallInfo(
             callId: callId,
             remoteUserId: from,
@@ -586,12 +587,13 @@ class CallService extends ChangeNotifier {
         return;
       }
 
-      if (kDebugMode) debugPrint('CallService: sending call-offer to $recipientId, callId=$callId');
+      final nameToSend = (callerName != null && callerName.trim().isNotEmpty) ? callerName.trim() : 'Собеседник';
+      if (kDebugMode) debugPrint('CallService: sending call-offer to $recipientId, callerName=$nameToSend');
       _ws.send({
         'type': 'call-offer',
         'to': recipientId,
         'callId': callId,
-        'callerName': callerName ?? 'Собеседник',
+        'callerName': nameToSend,
         'sdp': {
           'type': offer.type,
           'sdp': offer.sdp,

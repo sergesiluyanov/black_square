@@ -102,13 +102,14 @@ export async function sendMessagePush(recipientId, fromId, chatId, fromName) {
     data: {
       type: 'message',
       sender: fromId || '',
+      from: fromId || '',
       fromName: fromName || '',
       chatId: chatId || '',
     },
   });
 }
 
-/// Data-only push для звонков — приложение показывает экран и мелодию (full-screen intent в фоне)
+/// Data-only push для звонков — background handler показывает CallKit с кнопками «Принять»/«Отклонить»
 export async function sendCallPush(recipientId, fromId, fromName, callId) {
   const name = (fromName && String(fromName).trim()) || 'Кто-то звонит';
   await sendToUser(recipientId, {
@@ -116,6 +117,7 @@ export async function sendCallPush(recipientId, fromId, fromName, callId) {
     data: {
       type: 'call',
       sender: fromId || '',
+      from: fromId || '',
       fromName: name,
       callId: callId || '',
     },

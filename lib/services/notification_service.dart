@@ -3,17 +3,63 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Обработчик фоновых push — top-level функция
-/// Звонок в фоне: только notification с именем (экран звонка только в foreground)
+/// Звонок в фоне: показываем CallKit с кнопками «Принять» и «Отклонить»
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   if (kDebugMode) {
     debugPrint('FCM background: ${message.messageId} type=${message.data['type']}');
   }
-  // Звонок в фоне — FCM покажет notification с именем, CallKit не показываем
+  final type = message.data['type'] ?? '';
+  if (type == 'call' && Platform.isAndroid) {
+    final callId = message.data['callId'] ?? '';
+    final from = message.data['sender'] ?? message.data['from'] ?? '';
+    final fromName = message.data['fromName'] ?? 'Кто-то звонит';
+    if (callId.isNotEmpty && from.isNotEmpty) {
+      try {
+        await FlutterCallkitIncoming.showCallkitIncoming(
+          CallKitParams(
+            id: callId,
+            nameCaller: fromName,
+            appName: 'Black Square',
+            handle: from,
+            type: 0,
+            duration: 60000,
+            textAccept: 'Ответить',
+            textDecline: 'Отклонить',
+            callingNotification: const NotificationParams(
+              showNotification: false,
+              isShowCallback: false,
+            ),
+            missedCallNotification: const NotificationParams(
+              showNotification: true,
+              isShowCallback: true,
+              subtitle: 'Пропущенный звонок',
+              callbackText: 'Перезвонить',
+            ),
+            extra: {'callId': callId, 'from': from},
+            android: const AndroidParams(
+              isCustomNotification: true,
+              isShowFullLockedScreen: true,
+              ringtonePath: 'ringtone_positive',
+              backgroundColor: '#0A0A0A',
+              actionColor: '#6B8AFF',
+              textColor: '#ffffff',
+              incomingCallNotificationChannelName: 'Входящие звонки',
+              missedCallNotificationChannelName: 'Пропущенные',
+            ),
+          ),
+        );
+      } catch (e) {
+        if (kDebugMode) debugPrint('FCM background CallKit error: $e');
+      }
+    }
+  }
 }
 
 /// Сервис push-уведомлений (FCM + локальные для foreground)

@@ -14,7 +14,7 @@ const clients = new Map();
 const pendingMessages = new Map();
 
 // recipientId -> { offer, callerWs, callId, from, timeoutId } — буфер для офлайн получателей
-const PENDING_CALL_TIMEOUT_MS = 45000; // 45 сек — caller ждёт
+const PENDING_CALL_TIMEOUT_MS = 60000; // 1 мин — caller ждёт
 const pendingCalls = new Map();
 
 function loadPending() {
@@ -230,7 +230,13 @@ wss.on('connection', (ws, req) => {
                   try {
                     ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
                   } catch (_) {}
-                  console.log(`[${new Date().toISOString()}] Call timeout: ${userId} -> ${callTo}`);
+                  // Уведомляем получателя о пропущенном звонке (доставится при подключении)
+                  const missed = { type: 'call-missed', from: userId, callId: msg.callId };
+                  const q = pendingMessages.get(callTo) || [];
+                  q.push(missed);
+                  pendingMessages.set(callTo, q);
+                  savePending();
+                  console.log(`[${new Date().toISOString()}] Call timeout: ${userId} -> ${callTo}, call-missed queued`);
                 }
               }, PENDING_CALL_TIMEOUT_MS);
               pendingCalls.set(callTo, {

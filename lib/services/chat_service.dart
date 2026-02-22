@@ -128,7 +128,17 @@ class ChatService {
   }
 
   void _handleIncomingMessage(Map<String, dynamic> msg) {
-    if (msg['type'] != 'message') return;
+    final type = msg['type'] as String?;
+    if (type == 'call-missed') {
+      final from = msg['from'] as String?;
+      if (from != null) {
+        addLocalMissedCallMessage(from).catchError((e) {
+          if (kDebugMode) debugPrint('ChatService: call-missed addLocalMissedCallMessage error $e');
+        });
+      }
+      return;
+    }
+    if (type != 'message') return;
     _handleIncomingMessageAsync(msg).catchError((e, st) {
       if (kDebugMode) debugPrint('ChatService: error handling message: $e\n$st');
     });

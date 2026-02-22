@@ -122,8 +122,17 @@ class ChatService {
 
     _ws.onMessage = _handleIncomingMessage;
     final fcmToken = NotificationService().fcmToken;
+    final contactNames = <String, String>{};
     try {
-      await _ws.connect(Config.serverUrl, _userId!, fcmToken: fcmToken);
+      final chats = await getChats();
+      for (final c in chats) {
+        if (c.recipientId != null && c.name.isNotEmpty) {
+          contactNames[c.recipientId!] = c.name;
+        }
+      }
+    } catch (_) {}
+    try {
+      await _ws.connect(Config.serverUrl, _userId!, fcmToken: fcmToken, contactNames: contactNames);
     } catch (_) {}
   }
 
@@ -449,6 +458,9 @@ class ChatService {
       lastMessageAt: DateTime.now(),
     );
     await _saveChat(chat);
+    if (recipientId != null && name.isNotEmpty) {
+      _ws.send({'type': 'set-contact-name', contactId: recipientId, name: name});
+    }
     return chat;
   }
 

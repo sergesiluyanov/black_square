@@ -13,6 +13,9 @@ const PENDING_FILE = join(__dirname, 'data', 'pending.json');
 const clients = new Map();
 const pendingMessages = new Map();
 
+// userId -> Map<contactId, name> — имена собеседников для пушей (имя, которое юзер ввёл при создании чата)
+const contactNames = new Map();
+
 // recipientId -> { offer, callerWs, callId, from, timeoutId } — буфер для офлайн получателей
 const PENDING_CALL_TIMEOUT_MS = 60000; // 1 мин — caller ждёт
 const pendingCalls = new Map();
@@ -108,6 +111,9 @@ wss.on('connection', (ws, req) => {
               registerToken(userId, msg.fcmToken);
               console.log(`[${new Date().toISOString()}] FCM token registered for ${userId}`);
             }
+            if (msg.contactNames && typeof msg.contactNames === 'object') {
+              contactNames.set(userId, new Map(Object.entries(msg.contactNames)));
+            }
             console.log(`[${new Date().toISOString()}] Connect: ${userId} (conn: ${connId}, total users: ${clients.size})`);
 
             const pending = pendingMessages.get(userId) || [];
@@ -167,8 +173,24 @@ wss.on('connection', (ws, req) => {
             queue.push(envelope);
             pendingMessages.set(to, queue);
             savePending();
-            sendMessagePush(to, userId, chatId, fromName).catch(() => {});
+            const pushName = contactNames.get(to)?.get(userId) || fromName;
+            sendMessagePush(to, userId, chatId, pushName).catch(() => {});
             console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (offline, queued, push sent)`);
+          }
+          break;
+
+        case 'set-contact-name':
+          if (userId) {
+            const contactId = msg.contactId;
+            const name = msg.name;
+            if (contactId && typeof name === 'string' && name.trim()) {
+              let map = contactNames.get(userId);
+              if (!map) {
+                map = new Map();
+                contactNames.set(userId, map);
+              }
+              map.set(contactId, name.trim());
+            }
           }
           break;
 
@@ -219,8 +241,8 @@ wss.on('connection', (ws, req) => {
           }
           // Push только когда получатель офлайн — иначе экран звонка показывается сразу через WebSocket
           if (msg.type === 'call-offer' && callConnected.length === 0) {
-            const fromName = msg.callerName || null;
-            sendCallPush(callTo, userId, fromName, msg.callId).catch(() => {});
+            const pushName = contactNames.get(callTo)?.get(userId) || msg.callerName || null;
+            sendCallPush(callTo, userId, pushName, msg.callId).catch(() => {});
           }
           if (callConnected.length === 0) {
             if (msg.type === 'call-offer') {

@@ -65,15 +65,18 @@ class WebSocketService {
 
   /// Подключение к серверу
   /// [fcmToken] — токен FCM для push-уведомлений (отправляется на сервер)
-  Future<void> connect(String url, String userId, {String? fcmToken}) async {
+  /// [contactNames] — имена собеседников { contactId: name } для пушей
+  Future<void> connect(String url, String userId, {String? fcmToken, Map<String, String>? contactNames}) async {
     _url = url;
     _userId = userId;
     _fcmToken = fcmToken;
+    _contactNames = contactNames;
     _disconnectRequested = false;
     await _doConnect();
   }
 
   String? _fcmToken;
+  Map<String, String>? _contactNames;
 
   Future<void> _doConnect() async {
     if (_disconnectRequested) return;
@@ -93,6 +96,9 @@ class WebSocketService {
       final auth = {'type': 'auth', 'userId': _userId!};
       if (_fcmToken != null && _fcmToken!.isNotEmpty) {
         auth['fcmToken'] = _fcmToken!;
+      }
+      if (_contactNames != null && _contactNames!.isNotEmpty) {
+        auth['contactNames'] = _contactNames;
       }
       _channel!.sink.add(jsonEncode(auth));
 

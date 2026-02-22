@@ -109,11 +109,12 @@ export async function sendMessagePush(recipientId, fromId, chatId, fromName) {
   });
 }
 
-/// Data-only push для звонков — background handler показывает CallKit с кнопками «Принять»/«Отклонить»
+/// Push для звонков: notification + data. Background handler показывает CallKit.
+/// notification — fallback, если handler не сработает (app killed).
 export async function sendCallPush(recipientId, fromId, fromName, callId) {
   const name = (fromName && String(fromName).trim()) || 'Кто-то звонит';
   await sendToUser(recipientId, {
-    dataOnly: true,
+    notification: { title: 'Входящий звонок', body: name },
     data: {
       type: 'call',
       sender: fromId || '',

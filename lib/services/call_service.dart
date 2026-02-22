@@ -643,14 +643,16 @@ class CallService extends ChangeNotifier {
 
   Future<void> acceptCall() async {
     if (_state != CallState.incoming || _currentCall == null || _pendingOffer == null) return;
-    dismissMissedCallFromPush();
 
     final offer = _pendingOffer!;
-    final callId = offer['callId'] as String;
-    final from = offer['from'] as String;
+    final callId = offer['callId'] as String?;
+    final from = offer['from'] as String?;
     final sdp = offer['sdp'] as Map<String, dynamic>?;
-
     _pendingOffer = null;
+
+    if (callId == null || from == null) return;
+
+    missedCallFromPush = null;
     await _handleOffer(callId, from, sdp);
   }
 

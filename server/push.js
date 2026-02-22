@@ -132,3 +132,7 @@ export async function sendCallPush(recipientId, fromId, fromName, callId) {
 }
 
 init();
+
+export function isPushEnabled() {
+  return !!messaging;
+}

@@ -1,9 +1,20 @@
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import { networkInterfaces } from 'os';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { registerToken, sendMessagePush, sendCallPush } from './push.js';
+import { registerToken, sendMessagePush, sendCallPush, isPushEnabled } from './push.js';
+
+function getLocalIp() {
+  const nets = networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
+    }
+  }
+  return 'localhost';
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
@@ -109,7 +120,7 @@ wss.on('connection', (ws, req) => {
             getClientSet(userId).add(ws);
             if (msg.fcmToken) {
               registerToken(userId, msg.fcmToken);
-              console.log(`[${new Date().toISOString()}] FCM token registered for ${userId}`);
+              console.log(`[${new Date().toISOString()}] FCM token registered for ${userId} [push]`);
             }
             if (msg.contactNames && typeof msg.contactNames === 'object') {
               contactNames.set(userId, new Map(Object.entries(msg.contactNames)));
@@ -316,6 +327,9 @@ wss.on('connection', (ws, req) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Black Square server v2 (call-signal logging) on port ${PORT}`);
-  console.log(`WebSocket: ws://YOUR_IP:${PORT}`);
+  const host = process.env.PUBLIC_HOST || getLocalIp();
+  const pushStatus = isPushEnabled() ? 'enabled' : 'DISABLED (no firebase-service-account.json)';
+  console.log(`Black Square server on port ${PORT}`);
+  console.log(`WebSocket: ws://${host}:${PORT}`);
+  console.log(`[push] ${pushStatus}`);
 });

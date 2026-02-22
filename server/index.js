@@ -167,14 +167,15 @@ wss.on('connection', (ws, req) => {
                 console.error(`[${new Date().toISOString()}] Send failed to ${to}:`, e.message);
               }
             }
-            console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (${connected.length} device(s))`);
+            console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (${connected.length} device(s), no push — recipient online)`);
           } else {
             const queue = pendingMessages.get(to) || [];
             queue.push(envelope);
             pendingMessages.set(to, queue);
             savePending();
             const pushName = contactNames.get(to)?.get(userId) || fromName;
-            sendMessagePush(to, userId, chatId, pushName).catch(() => {});
+            console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (offline, queued, sending push)`);
+            sendMessagePush(to, userId, chatId, pushName).catch((e) => console.error(`[push] Message push failed:`, e.message));
             console.log(`[${new Date().toISOString()}] Message ${userId} -> ${to} (offline, queued, push sent)`);
           }
           break;
@@ -242,7 +243,8 @@ wss.on('connection', (ws, req) => {
           // Push только когда получатель офлайн — иначе экран звонка показывается сразу через WebSocket
           if (msg.type === 'call-offer' && callConnected.length === 0) {
             const pushName = contactNames.get(callTo)?.get(userId) || msg.callerName || null;
-            sendCallPush(callTo, userId, pushName, msg.callId).catch(() => {});
+            console.log(`[${new Date().toISOString()}] Call ${userId} -> ${callTo} (offline, sending push)`);
+            sendCallPush(callTo, userId, pushName, msg.callId).catch((e) => console.error(`[push] Call push failed:`, e.message));
           }
           if (callConnected.length === 0) {
             if (msg.type === 'call-offer') {
@@ -276,7 +278,7 @@ wss.on('connection', (ws, req) => {
               console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (recipient offline)`);
             }
           } else {
-            console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (${callConnected.length} device(s))`);
+            console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (${callConnected.length} device(s), no push — recipient online)`);
           }
           break;
       }

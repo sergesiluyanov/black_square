@@ -55,7 +55,10 @@ export function unregisterToken(userId, token) {
 }
 
 async function sendToUser(userId, message) {
-  if (!messaging) return;
+  if (!messaging) {
+    console.log(`[push] Skip: Firebase not initialized`);
+    return;
+  }
   const tokens = fcmTokens.get(userId);
   if (!tokens || tokens.size === 0) {
     console.log(`[push] No FCM token for user ${userId} — recipient must open app once to register`);
@@ -89,7 +92,7 @@ async function sendToUser(userId, message) {
       });
       console.error(`[push] Send to ${userId}: ${res.successCount} ok, ${res.failureCount} failed`);
     } else {
-      console.log(`[push] Sent to ${userId} (${res.successCount} device(s))`);
+      console.log(`[push] Sent to ${userId} (${res.successCount} device(s)) OK`);
     }
   } catch (e) {
     console.error(`[push] Send failed for ${userId}:`, e.message);

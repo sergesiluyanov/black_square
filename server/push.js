@@ -69,7 +69,12 @@ async function sendToUser(userId, message) {
   };
   if (!message.dataOnly && message.notification) {
     payload.notification = message.notification;
-    payload.android.notification = { channelId: 'black_square_messages', sound: 'default' };
+    payload.android.notification = {
+      channelId: 'black_square_messages',
+      sound: 'default',
+      priority: 'max',
+      defaultVibrateTimings: true,
+    };
   }
   try {
     const res = await messaging.sendEachForMulticast(payload);

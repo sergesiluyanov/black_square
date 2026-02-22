@@ -459,7 +459,7 @@ class ChatService {
     );
     await _saveChat(chat);
     if (recipientId != null && name.isNotEmpty) {
-      _ws.send({'type': 'set-contact-name', contactId: recipientId, name: name});
+      _ws.send({'type': 'set-contact-name', 'contactId': recipientId, 'name': name});
     }
     return chat;
   }

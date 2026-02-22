@@ -93,12 +93,12 @@ class WebSocketService {
       _isConnected = true;
       if (kDebugMode) debugPrint('WebSocket: connected, sending auth');
 
-      final auth = {'type': 'auth', 'userId': _userId!};
+      final auth = <String, dynamic>{'type': 'auth', 'userId': _userId!};
       if (_fcmToken != null && _fcmToken!.isNotEmpty) {
         auth['fcmToken'] = _fcmToken!;
       }
       if (_contactNames != null && _contactNames!.isNotEmpty) {
-        auth['contactNames'] = _contactNames;
+        auth['contactNames'] = _contactNames!;
       }
       _channel!.sink.add(jsonEncode(auth));
 

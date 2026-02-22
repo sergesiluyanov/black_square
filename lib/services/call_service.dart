@@ -416,7 +416,11 @@ class CallService extends ChangeNotifier {
 
       _peerConnection = await createPeerConnection(_iceServers);
 
-      for (final track in _localStream!.getTracks()) {
+      final tracks = _localStream!.getTracks();
+      if (tracks.isEmpty) {
+        throw Exception('Микрофон недоступен. На эмуляторе проверьте настройки.');
+      }
+      for (final track in tracks) {
         await _peerConnection!.addTrack(track, _localStream!);
       }
 
@@ -552,7 +556,11 @@ class CallService extends ChangeNotifier {
 
       _peerConnection = await createPeerConnection(_iceServers);
 
-      for (final track in _localStream!.getTracks()) {
+      final tracks = _localStream!.getTracks();
+      if (tracks.isEmpty) {
+        throw Exception('Микрофон недоступен. На эмуляторе проверьте настройки.');
+      }
+      for (final track in tracks) {
         await _peerConnection!.addTrack(track, _localStream!);
       }
 
@@ -625,7 +633,8 @@ class CallService extends ChangeNotifier {
 
       _setState(CallState.connecting);
     } catch (e, st) {
-      _setError('Ошибка: ${e.toString()}');
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      _setError(msg.contains('null') ? 'Ошибка доступа к микрофону. На эмуляторе проверьте настройки.' : 'Ошибка: $msg');
       if (kDebugMode) debugPrint('CallService: startCall error $e\n$st');
       _setState(CallState.ended);
       _cleanup();

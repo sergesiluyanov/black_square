@@ -97,6 +97,16 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _startCall() {
+    final recipientId = _chat.recipientId;
+    if (recipientId == null || recipientId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Невозможно позвонить: чат без собеседника'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final callService = context.read<CallService>();
     if (callService.state != CallState.idle) return;
     if (!callService.canCall) {
@@ -110,7 +120,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     final myName = context.read<ChatService>().displayName;
     callService.startCall(
-      _chat.recipientId!,
+      recipientId,
       _chat.name,
       callerName: myName.isNotEmpty ? myName : 'Собеседник',
     );

@@ -217,8 +217,11 @@ class CallService extends ChangeNotifier {
     final body = event.body is Map ? event.body as Map : null;
     final extra = body?['extra'] is Map ? body!['extra'] as Map : body;
     final eventCallId = body?['id'] ?? body?['callId'] ?? extra?['callId'];
-    final eventFrom = body?['handle'] ?? extra?['from'] ?? extra?['sender'];
+    final eventFrom = body?['handle'] ?? body?['number'] ?? extra?['from'] ?? extra?['sender'];
     final eventFromName = body?['nameCaller'] ?? extra?['fromName'];
+    if (kDebugMode) {
+      debugPrint('CallService: CallKit event ${event.event} body=$body extra=$extra');
+    }
 
     switch (event.event) {
       case Event.actionCallAccept:

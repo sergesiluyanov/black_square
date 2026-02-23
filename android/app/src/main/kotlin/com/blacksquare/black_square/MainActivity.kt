@@ -50,7 +50,7 @@ class MainActivity : FlutterActivity() {
 
         if (callId.isNullOrEmpty() || from.isNullOrEmpty()) return null
 
-        val fromName = bundle.getString("nameCaller")
+        val fromName = bundle.getString(CallkitConstants.EXTRA_CALLKIT_NAME_CALLER)
             ?: (bundle.getSerializable(CallkitConstants.EXTRA_CALLKIT_EXTRA) as? HashMap<*, *>)?.get("fromName")?.toString()
 
         return mutableMapOf(

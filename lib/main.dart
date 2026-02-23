@@ -8,6 +8,7 @@ import 'package:black_square/services/call_launch_service.dart';
 import 'package:black_square/services/call_service.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:black_square/services/notification_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -41,6 +42,9 @@ void main() async {
   CallLaunchData? launchCallData;
   if (Platform.isAndroid) {
     launchCallData = await getLaunchIntentCallData();
+    if (kDebugMode && launchCallData != null) {
+      debugPrint('main: launchCallData callId=${launchCallData!.callId} from=${launchCallData!.from} fromName=${launchCallData!.fromName}');
+    }
   }
 
   final chatService = ChatService();

@@ -143,10 +143,12 @@ class CallService extends ChangeNotifier {
     _setState(CallState.connecting);
     if (kDebugMode) debugPrint('CallService: show pending accept screen callId=$callId from=$from');
   }
-  /// При открытии приложения — сбрасываем пропущенный звонок и состояние, показываем главный экран
+  /// При открытии приложения — сбрасываем пропущенный звонок.
+  /// ВАЖНО: не трогаем peer connection в состояниях calling/incoming/connecting/connected —
+  /// иначе убиваем соединение, принятое через CallKit из background.
   void dismissMissedCallFromPush() {
     missedCallFromPush = null;
-    if (_state != CallState.idle && _state != CallState.connected) {
+    if (_state == CallState.ended) {
       _cleanup();
       _setState(CallState.idle);
     } else {

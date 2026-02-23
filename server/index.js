@@ -19,12 +19,14 @@ function getLocalIp() {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
 const PENDING_FILE = join(__dirname, 'data', 'pending.json');
+const CONTACT_NAMES_FILE = join(__dirname, 'data', 'contact_names.json');
 
 // userId -> Set<WebSocket> (разные устройства одного юзера НЕ отключают друг друга)
 const clients = new Map();
 const pendingMessages = new Map();
 
 // userId -> Map<contactId, name> — имена собеседников для пушей (имя, которое юзер ввёл при создании чата)
+// Сохраняются на диск, чтобы пуши со страницами приходили с именем после перезапуска сервера
 const contactNames = new Map();
 
 // recipientId -> { offer, callerWs, callId, from, timeoutId } — буфер для офлайн получателей
@@ -62,7 +64,44 @@ function savePending() {
   }
 }
 
+function loadContactNames() {
+  try {
+    if (existsSync(CONTACT_NAMES_FILE)) {
+      const data = JSON.parse(readFileSync(CONTACT_NAMES_FILE, 'utf8'));
+      for (const [userId, contacts] of Object.entries(data)) {
+        if (contacts && typeof contacts === 'object') {
+          contactNames.set(userId, new Map(Object.entries(contacts)));
+        }
+      }
+      console.log(`[${new Date().toISOString()}] Loaded contact names for ${contactNames.size} users`);
+    }
+  } catch (e) {
+    console.error('Failed to load contact names:', e.message);
+  }
+}
+
+let _saveContactNamesTimer = null;
+function saveContactNames() {
+  // Дебаунс: не пишем на диск при каждом обновлении — только раз в 5 сек
+  if (_saveContactNamesTimer) return;
+  _saveContactNamesTimer = setTimeout(() => {
+    _saveContactNamesTimer = null;
+    try {
+      const dir = dirname(CONTACT_NAMES_FILE);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      const data = {};
+      for (const [userId, map] of contactNames) {
+        if (map.size > 0) data[userId] = Object.fromEntries(map);
+      }
+      writeFileSync(CONTACT_NAMES_FILE, JSON.stringify(data), 'utf8');
+    } catch (e) {
+      console.error('Failed to save contact names:', e.message);
+    }
+  }, 5000);
+}
+
 loadPending();
+loadContactNames();
 
 function getClientSet(userId) {
   let set = clients.get(userId);
@@ -124,6 +163,7 @@ wss.on('connection', (ws, req) => {
             }
             if (msg.contactNames && typeof msg.contactNames === 'object') {
               contactNames.set(userId, new Map(Object.entries(msg.contactNames)));
+              saveContactNames();
             }
             console.log(`[${new Date().toISOString()}] Connect: ${userId} (conn: ${connId}, total users: ${clients.size})`);
 
@@ -202,6 +242,7 @@ wss.on('connection', (ws, req) => {
                 contactNames.set(userId, map);
               }
               map.set(contactId, name.trim());
+              saveContactNames();
             }
           }
           break;

@@ -7,58 +7,57 @@ import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-/// Обработчик фоновых push — top-level функция
-/// data-only сообщения вызывают этот handler всегда (foreground/background/killed)
+/// Обработчик фоновых push — top-level функция, вызывается в отдельном isolate.
+/// data-only сообщения вызывают этот handler всегда (foreground/background/killed).
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Firebase.initializeApp() нужен в background isolate
   await Firebase.initializeApp();
-  if (kDebugMode) {
-    debugPrint('FCM background: ${message.messageId} type=${message.data['type']}');
-  }
+
   final type = message.data['type'] ?? '';
+  final callId = message.data['callId'] ?? '';
+  final from = message.data['sender'] ?? message.data['from'] ?? '';
+  // fromName: сервер шлёт имя контакта получателя (из contactNames) или имя звонящего
+  final fromName = message.data['fromName']?.toString().trim() ?? '';
+  final displayName = fromName.isNotEmpty ? fromName : 'Входящий звонок';
+
   if (type == 'call' && Platform.isAndroid) {
-    final callId = message.data['callId'] ?? '';
-    final from = message.data['sender'] ?? message.data['from'] ?? '';
-    final fromName = message.data['fromName'] ?? 'Кто-то звонит';
-    if (callId.isNotEmpty && from.isNotEmpty) {
-      try {
-        await FlutterCallkitIncoming.showCallkitIncoming(
-          CallKitParams(
-            id: callId,
-            nameCaller: fromName,
-            appName: 'Black Square',
-            handle: from,
-            type: 0,
-            duration: 60000,
-            textAccept: 'Ответить',
-            textDecline: 'Отклонить',
-            callingNotification: const NotificationParams(
-              showNotification: false,
-              isShowCallback: false,
-            ),
-            missedCallNotification: const NotificationParams(
-              showNotification: true,
-              isShowCallback: true,
-              subtitle: 'Пропущенный звонок',
-              callbackText: 'Перезвонить',
-            ),
-            extra: {'callId': callId, 'from': from, 'fromName': fromName},
-            android: const AndroidParams(
-              isCustomNotification: true,
-              isShowFullLockedScreen: true,
-              ringtonePath: 'system_ringtone_default',
-              backgroundColor: '#0A0A0A',
-              actionColor: '#6B8AFF',
-              textColor: '#ffffff',
-              incomingCallNotificationChannelName: 'Входящие звонки',
-              missedCallNotificationChannelName: 'Пропущенные',
-            ),
+    if (callId.isEmpty || from.isEmpty) return;
+    try {
+      await FlutterCallkitIncoming.showCallkitIncoming(
+        CallKitParams(
+          id: callId,
+          nameCaller: displayName,
+          appName: 'Black Square',
+          handle: from,
+          type: 0,
+          duration: 60000,
+          textAccept: 'Ответить',
+          textDecline: 'Отклонить',
+          callingNotification: const NotificationParams(
+            showNotification: false,
+            isShowCallback: false,
           ),
-        );
-      } catch (e) {
-        if (kDebugMode) debugPrint('FCM background CallKit error: $e');
-      }
-    }
+          missedCallNotification: const NotificationParams(
+            showNotification: true,
+            isShowCallback: true,
+            subtitle: 'Пропущенный звонок',
+            callbackText: 'Перезвонить',
+          ),
+          extra: {'callId': callId, 'from': from, 'fromName': displayName},
+          android: const AndroidParams(
+            isCustomNotification: true,
+            isShowFullLockedScreen: true,
+            ringtonePath: 'system_ringtone_default',
+            backgroundColor: '#0A0A0A',
+            actionColor: '#6B8AFF',
+            textColor: '#ffffff',
+            incomingCallNotificationChannelName: 'Входящие звонки',
+            missedCallNotificationChannelName: 'Пропущенные',
+          ),
+        ),
+      );
+    } catch (_) {}
   } else if (type == 'message') {
     await _showBackgroundMessageNotification(message);
   }

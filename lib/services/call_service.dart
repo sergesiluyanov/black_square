@@ -141,7 +141,7 @@ class CallService extends ChangeNotifier {
   void _setState(CallState s) {
     _state = s;
     if (s == CallState.incoming) {
-      FlutterRingtonePlayer().playRingtone(looping: true, asAlarm: true);
+      FlutterRingtonePlayer().playRingtone(looping: true, asAlarm: false);
     } else {
       FlutterRingtonePlayer().stop();
     }
@@ -276,10 +276,10 @@ class CallService extends ChangeNotifier {
             callbackText: 'Перезвонить',
           ),
           extra: {'callId': callId, 'from': from},
-          android: const AndroidParams(
-            isCustomNotification: true,
-            isShowFullLockedScreen: true,
-            ringtonePath: 'ringtone_positive',
+            android: const AndroidParams(
+              isCustomNotification: true,
+              isShowFullLockedScreen: true,
+              ringtonePath: 'system_ringtone_default',
             backgroundColor: '#0A0A0A',
             actionColor: '#6B8AFF',
             textColor: '#ffffff',

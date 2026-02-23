@@ -46,7 +46,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
             android: const AndroidParams(
               isCustomNotification: true,
               isShowFullLockedScreen: true,
-              ringtonePath: 'ringtone_positive',
+              ringtonePath: 'system_ringtone_default',
               backgroundColor: '#0A0A0A',
               actionColor: '#6B8AFF',
               textColor: '#ffffff',

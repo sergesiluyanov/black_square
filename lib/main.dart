@@ -140,8 +140,11 @@ class _NotificationHandlerState extends State<_NotificationHandler> with Widgets
         sub = chatService.chatsUpdated.listen((_) => tryNavigate());
         Future.delayed(const Duration(seconds: 5), () => sub?.cancel());
       } else if (type == 'call') {
-        // Не показываем «Перезвонить» — приложение откроется, WebSocket подключится,
-        // сервер доставит буферизованный call-offer, CallService покажет экран входящего звонка
+        final callId = data['callId'];
+        final from = data['sender'];
+        if (callId != null && from != null) {
+          callService.setPendingAcceptFromLaunch(callId, from);
+        }
       }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => doNavigate());

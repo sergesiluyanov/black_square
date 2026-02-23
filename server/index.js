@@ -251,6 +251,20 @@ wss.on('connection', (ws, req) => {
               console.error(`[${new Date().toISOString()}] Call signal failed to ${callTo}:`, e.message);
             }
           }
+          // call-hangup от звонящего: если получатель офлайн — ставим «Звонок пропущен» в очередь
+          if (msg.type === 'call-hangup' && callConnected.length === 0) {
+            const pc = pendingCalls.get(callTo);
+            if (pc?.callId === msg.callId) {
+              clearTimeout(pc.timeoutId);
+              pendingCalls.delete(callTo);
+            }
+            const missed = { type: 'call-missed', from: userId, callId: msg.callId };
+            const q = pendingMessages.get(callTo) || [];
+            q.push(missed);
+            pendingMessages.set(callTo, q);
+            savePending();
+            console.log(`[${new Date().toISOString()}] Call hangup ${userId} -> ${callTo} (offline, call-missed queued)`);
+          }
           // Push только когда получатель офлайн — иначе экран звонка показывается сразу через WebSocket
           if (msg.type === 'call-offer' && callConnected.length === 0) {
             const pushName = contactNames.get(callTo)?.get(userId) || msg.callerName || null;
@@ -308,7 +322,12 @@ wss.on('connection', (ws, req) => {
       if (pc.callerWs === ws) {
         clearTimeout(pc.timeoutId);
         pendingCalls.delete(recipientId);
-        console.log(`[${new Date().toISOString()}] Pending call cancelled: caller disconnected`);
+        const missed = { type: 'call-missed', from: pc.from, callId: pc.callId };
+        const q = pendingMessages.get(recipientId) || [];
+        q.push(missed);
+        pendingMessages.set(recipientId, q);
+        savePending();
+        console.log(`[${new Date().toISOString()}] Pending call cancelled: caller disconnected, call-missed queued for ${recipientId}`);
       }
     }
     if (userId) {

@@ -3,18 +3,55 @@
  * Требуется: FIREBASE_SERVICE_ACCOUNT — путь к JSON сервисного аккаунта Firebase.
  * Если не задан — push отключены.
  */
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const FCM_TOKENS_FILE = join(__dirname, 'data', 'fcm_tokens.json');
 
 let messaging = null;
 const fcmTokens = new Map(); // userId -> Set<token>
 
+function loadFcmTokens() {
+  try {
+    if (existsSync(FCM_TOKENS_FILE)) {
+      const data = JSON.parse(readFileSync(FCM_TOKENS_FILE, 'utf8'));
+      for (const [userId, tokens] of Object.entries(data)) {
+        if (Array.isArray(tokens) && tokens.length > 0) {
+          fcmTokens.set(userId, new Set(tokens));
+        }
+      }
+      console.log(`[push] Loaded FCM tokens for ${fcmTokens.size} users`);
+    }
+  } catch (e) {
+    console.error('[push] Failed to load FCM tokens:', e.message);
+  }
+}
+
+let _saveTokensTimer = null;
+export function saveFcmTokens() {
+  if (_saveTokensTimer) return;
+  _saveTokensTimer = setTimeout(() => {
+    _saveTokensTimer = null;
+    try {
+      const dir = dirname(FCM_TOKENS_FILE);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      const data = {};
+      for (const [userId, set] of fcmTokens) {
+        if (set.size > 0) data[userId] = [...set];
+      }
+      writeFileSync(FCM_TOKENS_FILE, JSON.stringify(data), 'utf8');
+    } catch (e) {
+      console.error('[push] Failed to save FCM tokens:', e.message);
+    }
+  }, 3000);
+}
+
 function init() {
+  loadFcmTokens();
   const path = process.env.FIREBASE_SERVICE_ACCOUNT || join(__dirname, 'firebase-service-account.json');
   if (!existsSync(path)) {
     console.log(`[push] FIREBASE_SERVICE_ACCOUNT not found at ${path}, push disabled`);
@@ -44,6 +81,7 @@ export function registerToken(userId, token) {
     set.clear();
     arr.slice(-10).forEach(t => set.add(t));
   }
+  saveFcmTokens();
 }
 
 export function unregisterToken(userId, token) {
@@ -51,6 +89,7 @@ export function unregisterToken(userId, token) {
   if (set) {
     set.delete(token);
     if (set.size === 0) fcmTokens.delete(userId);
+    saveFcmTokens();
   }
 }
 
@@ -78,8 +117,10 @@ async function sendToUser(userId, message) {
       res.responses.forEach((r, i) => {
         if (!r.success) {
           console.error(`[push] FCM error for ${userId}:`, r.error?.code, r.error?.message);
-          if (r.error?.code === 'messaging/invalid-registration-token') {
+          if (r.error?.code === 'messaging/invalid-registration-token' ||
+              r.error?.code === 'messaging/registration-token-not-registered') {
             tokens.delete(tokenList[i]);
+            saveFcmTokens();
           }
         }
       });

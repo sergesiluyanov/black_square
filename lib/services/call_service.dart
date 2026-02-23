@@ -163,6 +163,15 @@ class CallService extends ChangeNotifier {
     } else {
       FlutterRingtonePlayer().stop();
     }
+    if (s == CallState.ended) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (_state == CallState.ended) {
+          _cleanup();
+          _state = CallState.idle;
+          notifyListeners();
+        }
+      });
+    }
     notifyListeners();
   }
 
@@ -482,12 +491,26 @@ class CallService extends ChangeNotifier {
         }
         break;
       case 'call-hangup':
+        if (_currentCall?.callId == callId) {
+          final wasIncoming = _currentCall!.isIncoming;
+          final wasRinging = _state == CallState.incoming;
+          final remoteId = _currentCall!.remoteUserId;
+          _hideCallKit();
+          _cleanup();
+          if (wasIncoming && wasRinging) {
+            // Звонящий отменил звонок до ответа → пропущенный в чате, сразу idle
+            _chatService.addLocalMissedCallMessage(remoteId).catchError((_) {});
+            _setState(CallState.idle);
+          } else {
+            _setState(CallState.ended);
+          }
+        }
+        break;
       case 'call-reject':
         if (_currentCall?.callId == callId) {
-          // Не отправляем «Звонок пропущен» — мы звонящий, собеседнику не нужно
-          _cleanupConnection();
-          _setState(CallState.ended);
           _hideCallKit();
+          _cleanup();
+          _setState(CallState.ended);
         }
         break;
       case 'call-offer-ack':

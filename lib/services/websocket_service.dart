@@ -22,6 +22,9 @@ class WebSocketService {
   /// Callback при получении call-сигнала (call-offer, call-answer, call-ice, call-hangup, call-reject)
   void Function(Map<String, dynamic> message)? onCallSignal;
 
+  /// Callback после установки соединения и отправки auth (для отправки отложенных сигналов)
+  VoidCallback? onConnected;
+
   bool get isConnected => _isConnected;
 
   Completer<bool>? _pendingPong;
@@ -101,6 +104,7 @@ class WebSocketService {
         auth['contactNames'] = _contactNames!;
       }
       _channel!.sink.add(jsonEncode(auth));
+      onConnected?.call();
 
       _subscription = _channel!.stream.listen(
         (data) {

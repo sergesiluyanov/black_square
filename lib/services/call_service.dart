@@ -127,6 +127,9 @@ class CallService extends ChangeNotifier {
   ({String callId, String from, String? fromName})? _pendingAcceptFromLaunch;
   bool _acceptedFromBackground = false;
 
+  /// Отклонение звонка из killed state — отправляется при следующем подключении WS
+  ({String callId, String to})? _pendingReject;
+
   void setPendingAcceptFromLaunch(String callId, String from, {String? fromName}) {
     _pendingAcceptFromLaunch = (callId: callId, from: from, fromName: fromName);
     if (kDebugMode) debugPrint('CallService: pending accept from launch callId=$callId from=$from fromName=$fromName');
@@ -200,9 +203,19 @@ class CallService extends ChangeNotifier {
 
   void init() {
     _ws.onCallSignal = _handleCallSignal;
+    _ws.onConnected = _onWsConnected;
     if (Platform.isAndroid) {
       _callKitSubscription = FlutterCallkitIncoming.onEvent.listen(_onCallKitEvent);
       FlutterCallkitIncoming.requestFullIntentPermission().catchError((_) {});
+    }
+  }
+
+  void _onWsConnected() {
+    if (_pendingReject != null) {
+      final r = _pendingReject!;
+      _pendingReject = null;
+      _ws.send({'type': 'call-reject', 'to': r.to, 'callId': r.callId});
+      if (kDebugMode) debugPrint('CallService: sent pending reject callId=${r.callId} to=${r.to}');
     }
   }
 
@@ -278,14 +291,21 @@ class CallService extends ChangeNotifier {
         if (_currentCall != null && eventCallId == _currentCall!.callId) {
           _sendMissedCallMessageIfNeeded();
           rejectCall();
-        } else if (eventFrom != null && eventFrom.toString().isNotEmpty) {
-          _chatService.addLocalMissedCallMessage(eventFrom.toString()).catchError((e) {
-            if (kDebugMode) debugPrint('CallService: addLocalMissedCallMessage (callback) error $e');
-          });
+          _hideCallKit();
+        } else {
+          // Killed state: _currentCall не установлен, нужно сохранить reject для отправки при подключении WS
+          final declineCallId = eventCallId?.toString() ?? '';
+          final declineFrom = eventFrom?.toString() ?? '';
+          if (declineCallId.isNotEmpty && declineFrom.isNotEmpty) {
+            _pendingReject = (callId: declineCallId, to: declineFrom);
+            _chatService.addLocalMissedCallMessage(declineFrom).catchError((e) {
+              if (kDebugMode) debugPrint('CallService: addLocalMissedCallMessage (killed decline) error $e');
+            });
+            if (kDebugMode) debugPrint('CallService: stored pending reject callId=$declineCallId to=$declineFrom');
+          }
+          _cleanupConnection();
+          _hideCallKit();
         }
-        _cleanupConnection();
-        _setState(CallState.ended);
-        _hideCallKit();
         break;
       case Event.actionCallTimeout:
         if (_currentCall != null && eventCallId == _currentCall!.callId) {
@@ -390,6 +410,14 @@ class CallService extends ChangeNotifier {
     switch (type) {
       case 'call-offer':
         if (kDebugMode) debugPrint('CallService: received call-offer from $from, callId=$callId state=$_state');
+        // Если пользователь уже отклонил этот звонок из killed state — отклоняем offer немедленно
+        if (_pendingReject != null && _pendingReject!.callId == callId) {
+          final r = _pendingReject!;
+          _pendingReject = null;
+          _ws.send({'type': 'call-reject', 'to': r.to, 'callId': r.callId});
+          if (kDebugMode) debugPrint('CallService: rejected buffered offer callId=$callId');
+          break;
+        }
         final pending = _pendingAcceptFromLaunch;
         if (_state == CallState.connecting &&
             pending != null &&
@@ -398,9 +426,17 @@ class CallService extends ChangeNotifier {
           _pendingOffer = {'callId': callId, 'from': from, 'sdp': msg['sdp']};
           _pendingAcceptFromLaunch = null;
           final callerName = (msg['callerName'] as String?)?.trim();
-          final displayName = (callerName != null && callerName.isNotEmpty)
-              ? callerName
-              : (pending.fromName ?? from);
+          final pushName = pending.fromName?.trim();
+          // pushName — имя из contactNames сервера (имя звонящего в контактах получателя).
+          // callerName — имя, которое звонящий сам себе выставил.
+          // Предпочитаем pushName, если это не placeholder-значение.
+          final pushIsReal = pushName != null &&
+              pushName.isNotEmpty &&
+              pushName != 'Входящий звонок' &&
+              pushName != 'Кто-то звонит';
+          final displayName = pushIsReal
+              ? pushName
+              : (callerName != null && callerName.isNotEmpty ? callerName : (pushName ?? from));
           _currentCall = CallInfo(
             callId: callId,
             remoteUserId: from,
@@ -496,20 +532,25 @@ class CallService extends ChangeNotifier {
           final wasRinging = _state == CallState.incoming;
           final remoteId = _currentCall!.remoteUserId;
           _hideCallKit();
-          _cleanup();
+          FlutterRingtonePlayer().stop();
+          _cleanupConnection(); // _currentCall сохраняем для отображения имени
           if (wasIncoming && wasRinging) {
-            // Звонящий отменил звонок до ответа → пропущенный в чате, сразу idle
+            // Звонящий отменил до ответа → пропущенный в чате, сразу idle
             _chatService.addLocalMissedCallMessage(remoteId).catchError((_) {});
+            _currentCall = null;
             _setState(CallState.idle);
           } else {
+            // Разговор завершён — показываем имя 3 секунды, авто-dismiss
             _setState(CallState.ended);
           }
         }
         break;
       case 'call-reject':
         if (_currentCall?.callId == callId) {
+          // Собеседник отклонил наш звонок — показываем имя 3 секунды, авто-dismiss
           _hideCallKit();
-          _cleanup();
+          FlutterRingtonePlayer().stop();
+          _cleanupConnection(); // _currentCall сохраняем для отображения имени
           _setState(CallState.ended);
         }
         break;
@@ -835,8 +876,8 @@ class CallService extends ChangeNotifier {
       'to': _currentCall!.remoteUserId,
       'callId': _currentCall!.callId,
     });
-    _setState(CallState.ended);
-    _cleanup();
+    _cleanup(); // Получатель отклонил — сразу очищаем
+    _setState(CallState.idle);
   }
 
   void hangUp() {

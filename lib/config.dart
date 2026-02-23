@@ -9,6 +9,7 @@ class Config {
   static const String? turnUsername = 'blacksquare';
   static const String? turnCredential = 'BS_turn_9f0c4bfebe13e8f1';
 
-  /// true = только через TURN (для 4G когда P2P не работает)
-  static const bool turnRelayOnly = true;
+  /// true = только через TURN (для 4G когда P2P не работает).
+  /// false = разрешить P2P (лучше для тестов в одной Wi‑Fi: реальное устройство + эмулятор).
+  static const bool turnRelayOnly = false;
 }

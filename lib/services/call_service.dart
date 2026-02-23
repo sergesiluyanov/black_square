@@ -231,17 +231,32 @@ class CallService extends ChangeNotifier {
         } else if (eventCallId != null && eventFrom != null && eventFrom.toString().isNotEmpty) {
           final callId = eventCallId.toString();
           final from = eventFrom.toString();
-          final fromName = eventFromName?.toString();
+          var fromName = eventFromName?.toString();
+          if (fromName == null || fromName.isEmpty) {
+            fromName = (body?['nameCaller'] ?? body?['name'])?.toString();
+          }
           setPendingAcceptFromLaunch(callId, from, fromName: fromName);
+          final displayName = (fromName != null && fromName.isNotEmpty) ? fromName : from;
           _currentCall = CallInfo(
             callId: callId,
             remoteUserId: from,
-            remoteName: (fromName != null && fromName.isNotEmpty) ? fromName : from,
+            remoteName: displayName,
             isIncoming: true,
           );
           _setState(CallState.connecting);
           _hideCallKit();
-          if (kDebugMode) debugPrint('CallService: Accept from CallKit (no offer yet) callId=$callId from=$from');
+          if (kDebugMode) debugPrint('CallService: Accept from CallKit (no offer yet) callId=$callId from=$from fromName=$fromName');
+          _getRemoteName(from).then((nameFromChat) {
+            if (_currentCall != null && _currentCall!.remoteUserId == from && nameFromChat != from && nameFromChat.isNotEmpty) {
+              _currentCall = CallInfo(
+                callId: _currentCall!.callId,
+                remoteUserId: from,
+                remoteName: nameFromChat,
+                isIncoming: true,
+              );
+              notifyListeners();
+            }
+          });
         }
         break;
       case Event.actionCallDecline:

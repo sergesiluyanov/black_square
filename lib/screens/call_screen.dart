@@ -37,7 +37,10 @@ class _CallScreenState extends State<CallScreen> {
           return const SizedBox.shrink();
         }
 
-        final displayName = call?.remoteName ?? '?';
+        final rawName = call?.remoteName;
+        final displayName = (rawName != null && rawName.isNotEmpty)
+            ? rawName
+            : (call?.remoteUserId ?? 'Собеседник');
         const showMissedCall = false;
         final showVideo = callService.hasVideo &&
             state != CallState.incoming &&

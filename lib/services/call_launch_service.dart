@@ -6,8 +6,9 @@ import 'package:flutter/services.dart';
 class CallLaunchData {
   final String callId;
   final String from;
+  final String? fromName;
 
-  CallLaunchData({required this.callId, required this.from});
+  CallLaunchData({required this.callId, required this.from, this.fromName});
 }
 
 /// Получает данные о принятом звонке из launch intent (Android).
@@ -21,7 +22,8 @@ Future<CallLaunchData?> getLaunchIntentCallData() async {
     final callId = result['callId']?.toString();
     final from = result['from']?.toString();
     if (callId == null || from == null || from.isEmpty) return null;
-    return CallLaunchData(callId: callId, from: from);
+    final fromName = result['fromName']?.toString();
+    return CallLaunchData(callId: callId, from: from, fromName: fromName);
   } catch (_) {
     return null;
   }

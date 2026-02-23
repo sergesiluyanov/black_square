@@ -124,10 +124,22 @@ class CallService extends ChangeNotifier {
   ({String senderId, String senderName})? missedCallFromPush;
 
   /// Принятие звонка при запуске из killed state (данные из launch intent)
-  ({String callId, String from})? _pendingAcceptFromLaunch;
-  void setPendingAcceptFromLaunch(String callId, String from) {
-    _pendingAcceptFromLaunch = (callId: callId, from: from);
-    if (kDebugMode) debugPrint('CallService: pending accept from launch callId=$callId from=$from');
+  ({String callId, String from, String? fromName})? _pendingAcceptFromLaunch;
+  void setPendingAcceptFromLaunch(String callId, String from, {String? fromName}) {
+    _pendingAcceptFromLaunch = (callId: callId, from: from, fromName: fromName);
+    if (kDebugMode) debugPrint('CallService: pending accept from launch callId=$callId from=$from fromName=$fromName');
+  }
+
+  /// Показать экран «Подключение» при тапе «Принять» из killed state (до получения call-offer)
+  void showPendingAcceptScreen(String callId, String from, String? fromName) {
+    _currentCall = CallInfo(
+      callId: callId,
+      remoteUserId: from,
+      remoteName: (fromName != null && fromName.isNotEmpty) ? fromName : from,
+      isIncoming: true,
+    );
+    _setState(CallState.connecting);
+    if (kDebugMode) debugPrint('CallService: show pending accept screen callId=$callId from=$from');
   }
   /// При открытии приложения — сбрасываем пропущенный звонок и состояние, показываем главный экран
   void dismissMissedCallFromPush() {
@@ -201,37 +213,68 @@ class CallService extends ChangeNotifier {
   }
 
   void _onCallKitEvent(CallEvent? event) {
-    if (event == null || _currentCall == null) return;
+    if (event == null) return;
     final body = event.body is Map ? event.body as Map : null;
-    final eventId = body?['id'] ?? body?['callId'];
-    if (eventId != _currentCall!.callId) return;
+    final extra = body?['extra'] is Map ? body!['extra'] as Map : body;
+    final eventCallId = body?['id'] ?? body?['callId'] ?? extra?['callId'];
+    final eventFrom = body?['handle'] ?? extra?['from'] ?? extra?['sender'];
+    final eventFromName = body?['nameCaller'] ?? extra?['fromName'];
+
     switch (event.event) {
       case Event.actionCallAccept:
-        acceptCall();
-        _hideCallKit();
+        if (_currentCall != null && eventCallId == _currentCall!.callId) {
+          acceptCall();
+          _hideCallKit();
+        } else if (eventCallId != null && eventFrom != null && eventFrom.toString().isNotEmpty) {
+          final callId = eventCallId.toString();
+          final from = eventFrom.toString();
+          final fromName = eventFromName?.toString();
+          setPendingAcceptFromLaunch(callId, from, fromName: fromName);
+          _currentCall = CallInfo(
+            callId: callId,
+            remoteUserId: from,
+            remoteName: (fromName != null && fromName.isNotEmpty) ? fromName : from,
+            isIncoming: true,
+          );
+          _setState(CallState.connecting);
+          _hideCallKit();
+          if (kDebugMode) debugPrint('CallService: Accept from CallKit (no offer yet) callId=$callId from=$from');
+        }
         break;
       case Event.actionCallDecline:
       case Event.actionCallEnded:
-        _sendMissedCallMessageIfNeeded();
-        rejectCall();
+        if (_currentCall != null && eventCallId == _currentCall!.callId) {
+          _sendMissedCallMessageIfNeeded();
+          rejectCall();
+        } else if (eventFrom != null && eventFrom.toString().isNotEmpty) {
+          _chatService.addLocalMissedCallMessage(eventFrom.toString()).catchError((e) {
+            if (kDebugMode) debugPrint('CallService: addLocalMissedCallMessage (callback) error $e');
+          });
+        }
+        _cleanupConnection();
+        _setState(CallState.ended);
         _hideCallKit();
         break;
       case Event.actionCallTimeout:
-        _sendMissedCallMessageIfNeeded();
+        if (_currentCall != null && eventCallId == _currentCall!.callId) {
+          _sendMissedCallMessageIfNeeded();
+        } else if (eventFrom != null && eventFrom.toString().isNotEmpty) {
+          _chatService.addLocalMissedCallMessage(eventFrom.toString()).catchError((e) {
+            if (kDebugMode) debugPrint('CallService: addLocalMissedCallMessage (timeout) error $e');
+          });
+        }
         _cleanupConnection();
         _setState(CallState.ended);
         _hideCallKit();
         break;
       case Event.actionCallCallback:
-        final body = event.body is Map ? event.body as Map : null;
-        if (body != null) {
-          final from = body['from'] ?? body['sender'] ?? body['handle'];
-          if (from != null && from.toString().isNotEmpty) {
-            _chatService.addLocalMissedCallMessage(from.toString()).catchError((e) {
-              if (kDebugMode) debugPrint('CallService: addLocalMissedCallMessage (callback) error $e');
-            });
-          }
+        if (eventFrom != null && eventFrom.toString().isNotEmpty) {
+          _chatService.addLocalMissedCallMessage(eventFrom.toString()).catchError((e) {
+            if (kDebugMode) debugPrint('CallService: addLocalMissedCallMessage (callback) error $e');
+          });
         }
+        _cleanupConnection();
+        _setState(CallState.ended);
         _hideCallKit();
         break;
       default:
@@ -277,7 +320,7 @@ class CallService extends ChangeNotifier {
             subtitle: 'Пропущенный звонок',
             callbackText: 'Перезвонить',
           ),
-          extra: {'callId': callId, 'from': from},
+          extra: {'callId': callId, 'from': from, 'fromName': fromName},
             android: const AndroidParams(
               isCustomNotification: true,
               isShowFullLockedScreen: true,
@@ -314,7 +357,29 @@ class CallService extends ChangeNotifier {
 
     switch (type) {
       case 'call-offer':
-        if (kDebugMode) debugPrint('CallService: received call-offer from $from, callId=$callId');
+        if (kDebugMode) debugPrint('CallService: received call-offer from $from, callId=$callId state=$_state');
+        final pending = _pendingAcceptFromLaunch;
+        if (_state == CallState.connecting &&
+            pending != null &&
+            pending.callId == callId &&
+            pending.from == from) {
+          _pendingOffer = {'callId': callId, 'from': from, 'sdp': msg['sdp']};
+          _pendingAcceptFromLaunch = null;
+          final callerName = (msg['callerName'] as String?)?.trim();
+          final displayName = (callerName != null && callerName.isNotEmpty)
+              ? callerName
+              : (pending.fromName ?? from);
+          _currentCall = CallInfo(
+            callId: callId,
+            remoteUserId: from,
+            remoteName: displayName,
+            isIncoming: true,
+          );
+          _setState(CallState.incoming);
+          if (kDebugMode) debugPrint('CallService: call-offer arrived for pending accept, auto-accepting');
+          acceptCall();
+          break;
+        }
         if (_state == CallState.idle) {
           final callerName = (msg['callerName'] as String?)?.trim();
           final initialName = (callerName != null && callerName.isNotEmpty) ? callerName : from;

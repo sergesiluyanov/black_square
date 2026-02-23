@@ -42,7 +42,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
               subtitle: 'Пропущенный звонок',
               callbackText: 'Перезвонить',
             ),
-            extra: {'callId': callId, 'from': from},
+            extra: {'callId': callId, 'from': from, 'fromName': fromName},
             android: const AndroidParams(
               isCustomNotification: true,
               isShowFullLockedScreen: true,

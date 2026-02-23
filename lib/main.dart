@@ -57,7 +57,12 @@ void main() async {
   callService.init();
   callService.dismissMissedCallFromPush(); // при открытии — главный экран, без экрана пропущенного звонка
   if (launchCallData != null) {
-    callService.setPendingAcceptFromLaunch(launchCallData.callId, launchCallData.from);
+    callService.setPendingAcceptFromLaunch(
+      launchCallData.callId,
+      launchCallData.from,
+      fromName: launchCallData.fromName,
+    );
+    callService.showPendingAcceptScreen(launchCallData.callId, launchCallData.from, launchCallData.fromName);
   }
 
   runApp(
@@ -141,9 +146,10 @@ class _NotificationHandlerState extends State<_NotificationHandler> with Widgets
         Future.delayed(const Duration(seconds: 5), () => sub?.cancel());
       } else if (type == 'call') {
         final callId = data['callId'];
-        final from = data['sender'];
+        final from = data['sender'] ?? data['from'];
+        final fromName = data['fromName'];
         if (callId != null && from != null) {
-          callService.setPendingAcceptFromLaunch(callId, from);
+          callService.setPendingAcceptFromLaunch(callId, from, fromName: fromName);
         }
       }
     }

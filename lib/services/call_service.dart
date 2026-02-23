@@ -125,6 +125,8 @@ class CallService extends ChangeNotifier {
 
   /// Принятие звонка при запуске из killed state (данные из launch intent)
   ({String callId, String from, String? fromName})? _pendingAcceptFromLaunch;
+  bool _acceptedFromBackground = false;
+
   void setPendingAcceptFromLaunch(String callId, String from, {String? fromName}) {
     _pendingAcceptFromLaunch = (callId: callId, from: from, fromName: fromName);
     if (kDebugMode) debugPrint('CallService: pending accept from launch callId=$callId from=$from fromName=$fromName');
@@ -394,6 +396,7 @@ class CallService extends ChangeNotifier {
             isIncoming: true,
           );
           _setState(CallState.incoming);
+          _acceptedFromBackground = true;
           if (kDebugMode) debugPrint('CallService: call-offer arrived for pending accept, auto-accepting');
           acceptCall();
           break;
@@ -415,6 +418,7 @@ class CallService extends ChangeNotifier {
           final pending = _pendingAcceptFromLaunch;
           if (pending != null && pending.callId == callId && pending.from == from) {
             _pendingAcceptFromLaunch = null;
+            _acceptedFromBackground = true;
             if (kDebugMode) debugPrint('CallService: auto-accept from launch intent');
             acceptCall();
           } else {
@@ -591,7 +595,22 @@ class CallService extends ChangeNotifier {
       }
 
       _setState(CallState.connecting);
+
+      // Принятие из background/killed: переговоры могут «залипнуть».
+      // Ручное включение камеры помогает — запускаем renegotiate автоматически.
+      if (_acceptedFromBackground) {
+        _acceptedFromBackground = false;
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (_peerConnection != null &&
+              _currentCall != null &&
+              (_state == CallState.connecting || _state == CallState.connected)) {
+            _renegotiate();
+            if (kDebugMode) debugPrint('CallService: auto-renegotiate after accept from background');
+          }
+        });
+      }
     } catch (e, st) {
+      _acceptedFromBackground = false;
       _setError('Ошибка при приёме: ${e.toString()}');
       if (kDebugMode) debugPrint('CallService: handleOffer error $e\n$st');
       if (_ws.isConnected) {

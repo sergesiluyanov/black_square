@@ -573,7 +573,13 @@ class CallService extends ChangeNotifier {
       if (answer.type == null || answer.sdp == null) {
         throw Exception('createAnswer вернул неполный SDP');
       }
-      await pc.setLocalDescription(answer);
+      if (_peerConnection == null) return; // звонящий уже сбросил
+      try {
+        await pc.setLocalDescription(answer);
+      } catch (e) {
+        if (e.toString().contains('closed') || e.toString().contains('wrong state')) return;
+        rethrow;
+      }
 
       if (!_ws.isConnected) {
         throw Exception('Соединение потеряно. Проверьте интернет.');
@@ -639,8 +645,16 @@ class CallService extends ChangeNotifier {
     try {
       final sdp = RTCSessionDescription(sdpMap['sdp'] as String, sdpMap['type'] as String);
       await _peerConnection!.setRemoteDescription(sdp);
+      if (_peerConnection == null) return;
       final answer = await _peerConnection!.createAnswer({});
-      await _peerConnection!.setLocalDescription(answer);
+      if (_peerConnection == null) return;
+      try {
+        await _peerConnection!.setLocalDescription(answer);
+      } catch (e) {
+        if (e.toString().contains('closed') || e.toString().contains('wrong state')) return;
+        rethrow;
+      }
+      if (_peerConnection == null) return;
       _ws.send({
         'type': 'call-reanswer',
         'to': from,
@@ -660,6 +674,7 @@ class CallService extends ChangeNotifier {
       await _peerConnection!.setRemoteDescription(sdp);
       notifyListeners();
     } catch (e) {
+      if (e.toString().contains('closed') || e.toString().contains('wrong state')) return;
       if (kDebugMode) debugPrint('CallService: _handleReanswer error $e');
     }
   }

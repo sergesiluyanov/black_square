@@ -228,6 +228,7 @@ class CallService extends ChangeNotifier {
     switch (event.event) {
       case Event.actionCallAccept:
         if (_currentCall != null && eventCallId == _currentCall!.callId) {
+          _acceptedFromBackground = true; // Accept из CallKit — запускаем auto-renegotiate
           acceptCall();
           _hideCallKit();
         } else if (eventCallId != null && eventFrom != null && eventFrom.toString().isNotEmpty) {

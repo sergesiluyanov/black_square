@@ -21,6 +21,16 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final fromName = message.data['fromName']?.toString().trim() ?? '';
   final displayName = fromName.isNotEmpty ? fromName : 'Входящий звонок';
 
+  if (type == 'call-cancelled' && Platform.isAndroid) {
+    // Звонящий отменил вызов — убираем CallKit уведомление
+    if (callId.isNotEmpty) {
+      try {
+        await FlutterCallkitIncoming.endCall(callId);
+      } catch (_) {}
+    }
+    return;
+  }
+
   if (type == 'call' && Platform.isAndroid) {
     if (callId.isEmpty || from.isEmpty) return;
     try {

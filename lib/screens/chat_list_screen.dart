@@ -193,96 +193,69 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   void _showProfile(BuildContext context) {
     final chatService = context.read<ChatService>();
-    final nameController = TextEditingController(text: chatService.displayName);
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          title: const Text('Профиль', style: TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Ваш ID',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: chatService.userId));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('ID скопирован'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF111111),
-                    borderRadius: BorderRadius.circular(8),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Ваш ID', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Покажите этот ID собеседнику — он введёт его при создании чата.',
+              style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: chatService.userId));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('ID скопирован'),
+                    duration: Duration(seconds: 2),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          chatService.userId,
-                          style: const TextStyle(
-                            color: Color(0xFF6B8AFF),
-                            fontSize: 11,
-                            fontFamily: 'monospace',
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF111111),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF333333)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        chatService.userId,
+                        style: const TextStyle(
+                          color: Color(0xFF6B8AFF),
+                          fontSize: 12,
+                          fontFamily: 'monospace',
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.copy, color: Colors.white38, size: 14),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.copy_outlined, color: Colors.white38, size: 16),
+                  ],
                 ),
               ),
-              const SizedBox(height: 20),
-              const Text(
-                'Ваше имя (видно при звонках)',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: nameController,
-                autofocus: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Имя не задано',
-                  hintStyle: const TextStyle(color: Colors.white38),
-                  filled: true,
-                  fillColor: const Color(0xFF111111),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Отмена', style: TextStyle(color: Colors.white54)),
             ),
-            TextButton(
-              onPressed: () async {
-                await chatService.setDisplayName(nameController.text.trim());
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: const Text('Сохранить', style: TextStyle(color: Color(0xFF6B8AFF))),
+            const SizedBox(height: 12),
+            const Text(
+              'Имена при звонках берутся из ваших контактов — как вы назвали собеседника при создании чата.',
+              style: TextStyle(color: Colors.white38, fontSize: 11, height: 1.5),
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Закрыть', style: TextStyle(color: Color(0xFF6B8AFF))),
+          ),
+        ],
       ),
     );
   }

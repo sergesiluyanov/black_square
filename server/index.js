@@ -4,7 +4,7 @@ import { networkInterfaces } from 'os';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { registerToken, sendMessagePush, sendCallPush, isPushEnabled } from './push.js';
+import { registerToken, sendMessagePush, sendCallPush, sendCancelPush, isPushEnabled } from './push.js';
 
 function getLocalIp() {
   const nets = networkInterfaces();
@@ -304,11 +304,15 @@ wss.on('connection', (ws, req) => {
             q.push(missed);
             pendingMessages.set(callTo, q);
             savePending();
-            console.log(`[${new Date().toISOString()}] Call hangup ${userId} -> ${callTo} (offline, call-missed queued)`);
+            // Отправляем push чтобы убрать CallKit нотификацию у офлайн-получателя
+            sendCancelPush(callTo, msg.callId).catch((e) => console.error(`[push] Cancel push failed:`, e.message));
+            console.log(`[${new Date().toISOString()}] Call hangup ${userId} -> ${callTo} (offline, call-missed queued, cancel push sent)`);
           }
           // Push только когда получатель офлайн — иначе экран звонка показывается сразу через WebSocket
           if (msg.type === 'call-offer' && callConnected.length === 0) {
-            const pushName = contactNames.get(callTo)?.get(userId) || msg.callerName || null;
+            // Имя берётся из контактов получателя — как получатель назвал звонящего.
+            // callerName из offer не используется: у разных получателей одно лицо может быть "мама", "Вася" и т.д.
+            const pushName = contactNames.get(callTo)?.get(userId) || null;
             console.log(`[${new Date().toISOString()}] Call ${userId} -> ${callTo} (offline, sending push)`);
             sendCallPush(callTo, userId, pushName, msg.callId).catch((e) => console.error(`[push] Call push failed:`, e.message));
           }

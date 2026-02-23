@@ -148,6 +148,16 @@ export async function sendMessagePush(recipientId, fromId, chatId, fromName) {
   });
 }
 
+/// Push для отмены звонка: убирает CallKit нотификацию у офлайн-получателя.
+export async function sendCancelPush(recipientId, callId) {
+  await sendToUser(recipientId, {
+    data: {
+      type: 'call-cancelled',
+      callId: callId || '',
+    },
+  });
+}
+
 /// Push для звонков: data-only. Background handler показывает CallKit.
 export async function sendCallPush(recipientId, fromId, fromName, callId) {
   const name = (fromName && String(fromName).trim()) || 'Кто-то звонит';

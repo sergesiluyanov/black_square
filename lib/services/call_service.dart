@@ -127,6 +127,9 @@ class CallService extends ChangeNotifier {
   ({String callId, String from, String? fromName})? _pendingAcceptFromLaunch;
   bool _acceptedFromBackground = false;
 
+  /// Звонок был сделан офлайн-получателю (нужен re-negotiate после получения answer)
+  bool _calledOfflineRecipient = false;
+
   /// Отклонение звонка из killed state — отправляется при следующем подключении WS
   ({String callId, String to})? _pendingReject;
 
@@ -192,6 +195,8 @@ class CallService extends ChangeNotifier {
     FlutterRingtonePlayer().stop();
     _cleanupConnection();
     _currentCall = null;
+    _calledOfflineRecipient = false;
+    _acceptedFromBackground = false;
   }
 
   void _setError(String msg) {
@@ -567,6 +572,10 @@ class CallService extends ChangeNotifier {
           final ack = msg['recipientOnline'] == true ? 'online' : 'offline';
           debugPrint('CallService: call-offer-ack callId=$callId recipient=$ack');
         }
+        // Если получатель офлайн — пометим флаг для re-negotiate после получения answer
+        if (msg['recipientOnline'] != true && _currentCall?.callId == callId) {
+          _calledOfflineRecipient = true;
+        }
         break;
     }
   }
@@ -711,6 +720,20 @@ class CallService extends ChangeNotifier {
     final sdp = RTCSessionDescription(sdpMap['sdp'] as String, sdpMap['type'] as String);
     await _peerConnection!.setRemoteDescription(sdp);
     _setState(CallState.connected);
+
+    // Если получатель принял из background/killed (пуш), ICE-кандидаты звонящего были потеряны.
+    // Запускаем re-negotiate чтобы обменяться свежими ICE-кандидатами.
+    if (_calledOfflineRecipient) {
+      _calledOfflineRecipient = false;
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (_peerConnection != null &&
+            _currentCall != null &&
+            (_state == CallState.connected || _state == CallState.connecting)) {
+          _renegotiate();
+          if (kDebugMode) debugPrint('CallService: auto-renegotiate (caller, offline recipient answered)');
+        }
+      });
+    }
   }
 
   Future<void> _handleReoffer(String from, dynamic sdpMap) async {

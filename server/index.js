@@ -339,8 +339,8 @@ wss.on('connection', (ws, req) => {
               });
               console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (offline, buffered, push sent)`);
             } else if (msg.type === 'call-ice') {
-              // ICE-кандидат к офлайн-получателю — уведомляем звонящего об отсутствии соединения
-              ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline', from: callTo }));
+              // ICE-кандидат к офлайн-получателю — молча игнорируем.
+              // Соединение установится через re-negotiation после принятия звонка из пуша.
             }
             if (msg.type !== 'call-offer') {
               console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (recipient offline)`);

@@ -562,13 +562,17 @@ class CallService extends ChangeNotifier {
       }
       final sdp = RTCSessionDescription(sdpStr, sdpType);
 
-      if (_peerConnection == null) {
+      final pc = _peerConnection;
+      if (pc == null) {
         throw Exception('Соединение было закрыто');
       }
-      await _peerConnection!.setRemoteDescription(sdp);
+      await pc.setRemoteDescription(sdp);
 
-      final answer = await _peerConnection!.createAnswer({});
-      await _peerConnection!.setLocalDescription(answer);
+      final answer = await pc.createAnswer({});
+      if (answer.type == null || answer.sdp == null) {
+        throw Exception('createAnswer вернул неполный SDP');
+      }
+      await pc.setLocalDescription(answer);
 
       if (!_ws.isConnected) {
         throw Exception('Соединение потеряно. Проверьте интернет.');
@@ -578,12 +582,12 @@ class CallService extends ChangeNotifier {
         'to': from,
         'callId': callId,
         'sdp': {
-          'type': answer.type,
-          'sdp': answer.sdp,
+          'type': answer.type!,
+          'sdp': answer.sdp!,
         },
       });
 
-      while (_pendingIceCandidates.isNotEmpty) {
+      while (_pendingIceCandidates.isNotEmpty && _peerConnection != null) {
         final c = _pendingIceCandidates.removeAt(0);
         try {
           await _peerConnection!.addCandidate(RTCIceCandidate(

@@ -408,10 +408,12 @@ class CallService extends ChangeNotifier {
     if (from == null && type != 'call-hangup' && type != 'call-reject') return;
     // call-offer не игнорируем при from==self — звонок с другого своего устройства
     if (from != null && from == _chatService.userId && type != 'call-offer') return;
+    // Гарантированно non-null для всех типов кроме server-hangup/reject (там from не используется)
+    final fromId = from ?? '';
 
     switch (type) {
       case 'call-offer':
-        if (kDebugMode) debugPrint('CallService: received call-offer from $from, callId=$callId state=$_state');
+        if (kDebugMode) debugPrint('CallService: received call-offer from $fromId, callId=$callId state=$_state');
         // Если пользователь уже отклонил этот звонок из killed state — отклоняем offer немедленно
         if (_pendingReject != null && _pendingReject!.callId == callId) {
           final r = _pendingReject!;
@@ -424,8 +426,8 @@ class CallService extends ChangeNotifier {
         if (_state == CallState.connecting &&
             pending != null &&
             pending.callId == callId &&
-            pending.from == from) {
-          _pendingOffer = {'callId': callId, 'from': from, 'sdp': msg['sdp']};
+            pending.from == fromId) {
+          _pendingOffer = {'callId': callId, 'from': fromId, 'sdp': msg['sdp']};
           _pendingAcceptFromLaunch = null;
           final callerName = (msg['callerName'] as String?)?.trim();
           final pushName = pending.fromName?.trim();
@@ -438,10 +440,10 @@ class CallService extends ChangeNotifier {
               pushName != 'Кто-то звонит';
           final displayName = pushIsReal
               ? pushName
-              : (callerName != null && callerName.isNotEmpty ? callerName : (pushName ?? from));
+              : (callerName != null && callerName.isNotEmpty ? callerName : (pushName ?? fromId));
           _currentCall = CallInfo(
             callId: callId,
-            remoteUserId: from,
+            remoteUserId: fromId,
             remoteName: displayName,
             isIncoming: true,
           );
@@ -453,20 +455,20 @@ class CallService extends ChangeNotifier {
         }
         if (_state == CallState.idle) {
           final callerName = (msg['callerName'] as String?)?.trim();
-          final initialName = (callerName != null && callerName.isNotEmpty) ? callerName : from;
+          final initialName = (callerName != null && callerName.isNotEmpty) ? callerName : fromId;
           if (kDebugMode) debugPrint('CallService: call-offer callerName=$callerName initialName=$initialName');
           _currentCall = CallInfo(
             callId: callId,
-            remoteUserId: from,
+            remoteUserId: fromId,
             remoteName: initialName,
             isIncoming: true,
           );
-          _pendingOffer = {'callId': callId, 'from': from, 'sdp': msg['sdp']};
+          _pendingOffer = {'callId': callId, 'from': fromId, 'sdp': msg['sdp']};
           _setState(CallState.incoming);
 
           // Если приложение запущено принятием звонка из killed — сразу принимаем
           final pending = _pendingAcceptFromLaunch;
-          if (pending != null && pending.callId == callId && pending.from == from) {
+          if (pending != null && pending.callId == callId && pending.from == fromId) {
             _pendingAcceptFromLaunch = null;
             _acceptedFromBackground = true;
             if (kDebugMode) debugPrint('CallService: auto-accept from launch intent');
@@ -474,19 +476,19 @@ class CallService extends ChangeNotifier {
           } else {
             // В background — CallKit (полноэкранный звонок поверх других приложений)
             if (Platform.isAndroid && appLifecycleNotifier.value != AppLifecycleState.resumed) {
-              _showCallKit(callId, initialName, from);
+              _showCallKit(callId, initialName, fromId);
             }
             // В foreground показываем наш CallScreen, CallKit не нужен
-            _getRemoteName(from).then((nameFromChat) {
-              if (_currentCall != null && _currentCall!.remoteUserId == from) {
+            _getRemoteName(fromId).then((nameFromChat) {
+              if (_currentCall != null && _currentCall!.remoteUserId == fromId) {
                 // Используем имя из чата только если это не userId (есть контакт).
                 // Иначе оставляем callerName из offer — имя звонящего.
-                final displayName = (nameFromChat != from && nameFromChat.isNotEmpty)
+                final displayName = (nameFromChat != fromId && nameFromChat.isNotEmpty)
                     ? nameFromChat
                     : initialName;
                 _currentCall = CallInfo(
                   callId: _currentCall!.callId,
-                  remoteUserId: from,
+                  remoteUserId: fromId,
                   remoteName: displayName,
                   isIncoming: true,
                 );
@@ -503,7 +505,7 @@ class CallService extends ChangeNotifier {
         break;
       case 'call-reoffer':
         if (_currentCall?.callId == callId && _peerConnection != null) {
-          _handleReoffer(from, msg['sdp']);
+          _handleReoffer(fromId, msg['sdp']);
         }
         break;
       case 'call-reanswer':

@@ -322,12 +322,27 @@ wss.on('connection', (ws, req) => {
       if (pc.callerWs === ws) {
         clearTimeout(pc.timeoutId);
         pendingCalls.delete(recipientId);
-        const missed = { type: 'call-missed', from: pc.from, callId: pc.callId };
-        const q = pendingMessages.get(recipientId) || [];
-        q.push(missed);
-        pendingMessages.set(recipientId, q);
-        savePending();
-        console.log(`[${new Date().toISOString()}] Pending call cancelled: caller disconnected, call-missed queued for ${recipientId}`);
+        const callId = pc.callId;
+        const missed = { type: 'call-missed', from: pc.from, callId };
+        const recipientSet = clients.get(recipientId);
+        const recipientConnected = recipientSet ? [...recipientSet].filter(w => w.readyState === 1) : [];
+        if (recipientConnected.length > 0) {
+          const hangup = { type: 'call-hangup', callId, from: pc.from, reason: 'caller_disconnected' };
+          for (const w of recipientConnected) {
+            try {
+              w.send(JSON.stringify(hangup));
+            } catch (e) {
+              console.error(`[${new Date().toISOString()}] Failed to send call-hangup to ${recipientId}:`, e.message);
+            }
+          }
+          console.log(`[${new Date().toISOString()}] Caller disconnected: sent call-hangup to ${recipientId} (${recipientConnected.length} device(s))`);
+        } else {
+          const q = pendingMessages.get(recipientId) || [];
+          q.push(missed);
+          pendingMessages.set(recipientId, q);
+          savePending();
+          console.log(`[${new Date().toISOString()}] Pending call cancelled: caller disconnected, call-missed queued for ${recipientId}`);
+        }
       }
     }
     if (userId) {

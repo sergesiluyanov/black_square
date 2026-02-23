@@ -8,7 +8,7 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Обработчик фоновых push — top-level функция
-/// Звонок в фоне: показываем CallKit с кнопками «Принять» и «Отклонить»
+/// data-only сообщения вызывают этот handler всегда (foreground/background/killed)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -59,7 +59,58 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         if (kDebugMode) debugPrint('FCM background CallKit error: $e');
       }
     }
+  } else if (type == 'message') {
+    await _showBackgroundMessageNotification(message);
   }
+}
+
+/// Локальное уведомление в фоне (отдельный isolate)
+Future<void> _showBackgroundMessageNotification(RemoteMessage message) async {
+  final plugin = FlutterLocalNotificationsPlugin();
+  const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+  await plugin.initialize(const InitializationSettings(android: androidSettings));
+
+  const channel = AndroidNotificationChannel(
+    'black_square_messages',
+    'Сообщения и звонки',
+    description: 'Уведомления о новых сообщениях и входящих звонках',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+  );
+  await plugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+
+  final data = message.data;
+  final title = data['title'] ?? data['fromName'] ?? 'Новое сообщение';
+  final body = data['body'] ?? 'У вас новое сообщение';
+
+  final payloadParts = ['message'];
+  for (final e in data.entries) {
+    payloadParts.addAll([e.key, e.value]);
+  }
+  final payload = payloadParts.join('|');
+
+  const details = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'black_square_messages',
+      'Сообщения и звонки',
+      channelDescription: 'Уведомления о новых сообщениях и входящих звонках',
+      importance: Importance.high,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    ),
+  );
+  await plugin.show(
+    message.hashCode.abs() % 0x7FFFFFFF,
+    title,
+    body,
+    details,
+    payload: payload,
+  );
 }
 
 /// Сервис push-уведомлений (FCM + локальные для foreground)
@@ -157,7 +208,11 @@ class NotificationService {
         for (var i = 1; i < parts.length; i += 2) {
           if (i + 1 < parts.length) data[parts[i]] = parts[i + 1];
         }
-        _onNotificationTap?.call(type, data);
+        if (_onNotificationTap != null) {
+          _onNotificationTap!(type, data);
+        } else {
+          _pendingTap = (type: type, data: data);
+        }
       }
     } catch (_) {}
   }

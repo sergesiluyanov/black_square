@@ -65,20 +65,13 @@ async function sendToUser(userId, message) {
     return;
   }
   const tokenList = [...tokens];
+  // data-only: onBackgroundMessage вызывается всегда (foreground/background/killed).
+  // notification+data на Android в фоне НЕ вызывает onBackgroundMessage — пуши не показываются.
   const payload = {
     tokens: tokenList,
     data: message.data,
     android: { priority: 'high' },
   };
-  if (!message.dataOnly && message.notification) {
-    payload.notification = message.notification;
-    payload.android.notification = {
-      channelId: 'black_square_messages',
-      sound: 'default',
-      priority: 'max',
-      defaultVibrateTimings: true,
-    };
-  }
   try {
     const res = await messaging.sendEachForMulticast(payload);
     if (res.failureCount > 0) {
@@ -103,25 +96,21 @@ export async function sendMessagePush(recipientId, fromId, chatId, fromName) {
   const title = fromName ? `${fromName}` : 'Новое сообщение';
   const body = fromName ? 'Новое сообщение' : 'У вас новое сообщение';
   await sendToUser(recipientId, {
-    notification: {
-      title,
-      body,
-    },
     data: {
       type: 'message',
       sender: fromId || '',
       fromName: fromName || '',
       chatId: chatId || '',
+      title,
+      body,
     },
   });
 }
 
-/// Push для звонков: notification + data. Background handler показывает CallKit.
-/// notification — fallback, если handler не сработает (app killed).
+/// Push для звонков: data-only. Background handler показывает CallKit.
 export async function sendCallPush(recipientId, fromId, fromName, callId) {
   const name = (fromName && String(fromName).trim()) || 'Кто-то звонит';
   await sendToUser(recipientId, {
-    notification: { title: 'Входящий звонок', body: name },
     data: {
       type: 'call',
       sender: fromId || '',

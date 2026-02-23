@@ -6,6 +6,7 @@ import 'package:black_square/screens/new_chat_screen.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:black_square/widgets/app_logo.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class ChatListScreen extends StatefulWidget {
@@ -89,6 +90,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
             icon: const Icon(Icons.lock, color: Colors.white54, size: 22),
             onPressed: () => _showEncryptionInfo(context),
             tooltip: 'Шифрование',
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_outline, color: Colors.white70, size: 22),
+            onPressed: () => _showProfile(context),
+            tooltip: 'Профиль',
           ),
         ],
       ),
@@ -183,6 +189,102 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await context.read<ChatService>().markChatAsRead(chat.id);
       if (mounted) _loadChats(silent: true);
     });
+  }
+
+  void _showProfile(BuildContext context) {
+    final chatService = context.read<ChatService>();
+    final nameController = TextEditingController(text: chatService.displayName);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          title: const Text('Профиль', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Ваш ID',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: chatService.userId));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('ID скопирован'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF111111),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          chatService.userId,
+                          style: const TextStyle(
+                            color: Color(0xFF6B8AFF),
+                            fontSize: 11,
+                            fontFamily: 'monospace',
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.copy, color: Colors.white38, size: 14),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Ваше имя (видно при звонках)',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Имя не задано',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: const Color(0xFF111111),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Отмена', style: TextStyle(color: Colors.white54)),
+            ),
+            TextButton(
+              onPressed: () async {
+                await chatService.setDisplayName(nameController.text.trim());
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Сохранить', style: TextStyle(color: Color(0xFF6B8AFF))),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showConnectionStatus(BuildContext context) {

@@ -318,7 +318,8 @@ wss.on('connection', (ws, req) => {
                 if (pendingCalls.get(callTo)?.callId === msg.callId) {
                   pendingCalls.delete(callTo);
                   try {
-                    ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
+                    // from: callTo — получатель, который так и не ответил (не userId — это звонящий)
+                    ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'timeout', from: callTo }));
                   } catch (_) {}
                   // Уведомляем получателя о пропущенном звонке (доставится при подключении)
                   const missed = { type: 'call-missed', from: userId, callId: msg.callId };
@@ -338,7 +339,8 @@ wss.on('connection', (ws, req) => {
               });
               console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (offline, buffered, push sent)`);
             } else if (msg.type === 'call-ice') {
-              ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline' }));
+              // ICE-кандидат к офлайн-получателю — уведомляем звонящего об отсутствии соединения
+              ws.send(JSON.stringify({ type: 'call-hangup', callId: msg.callId, reason: 'offline', from: callTo }));
             }
             if (msg.type !== 'call-offer') {
               console.log(`[${new Date().toISOString()}] Call ${msg.type} ${userId} -> ${callTo} (recipient offline)`);

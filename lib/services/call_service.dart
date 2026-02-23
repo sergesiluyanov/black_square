@@ -403,9 +403,11 @@ class CallService extends ChangeNotifier {
     final from = msg['from'] as String?;
     final callId = msg['callId'] as String?;
     if (kDebugMode) debugPrint('CallService: _handleCallSignal type=$type from=$from callId=$callId myUserId=${_chatService.userId}');
-    if (from == null || callId == null) return;
+    if (callId == null) return;
+    // call-hangup и call-reject могут приходить от сервера без from (офлайн-ситуация)
+    if (from == null && type != 'call-hangup' && type != 'call-reject') return;
     // call-offer не игнорируем при from==self — звонок с другого своего устройства
-    if (from == _chatService.userId && type != 'call-offer') return;
+    if (from != null && from == _chatService.userId && type != 'call-offer') return;
 
     switch (type) {
       case 'call-offer':
@@ -527,7 +529,10 @@ class CallService extends ChangeNotifier {
         }
         break;
       case 'call-hangup':
-        if (_currentCall?.callId == callId) {
+        // Защита от повторной обработки (сервер может слать несколько hangup для одного callId)
+        if (_currentCall?.callId == callId &&
+            _state != CallState.idle &&
+            _state != CallState.ended) {
           final wasIncoming = _currentCall!.isIncoming;
           final wasRinging = _state == CallState.incoming;
           final remoteId = _currentCall!.remoteUserId;

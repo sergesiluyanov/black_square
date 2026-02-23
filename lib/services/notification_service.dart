@@ -243,6 +243,36 @@ class NotificationService {
     }
   }
 
+  /// Показать уведомление о сообщении (при получении по WebSocket в фоне)
+  Future<void> showMessageNotification({
+    required String from,
+    required String fromName,
+    required String chatId,
+  }) async {
+    if (!Platform.isAndroid) return;
+    final title = fromName.isNotEmpty ? fromName : 'Новое сообщение';
+    const body = 'Новое сообщение';
+    final payloadParts = ['message', 'sender', from, 'chatId', chatId];
+    final payload = payloadParts.join('|');
+    const androidDetails = AndroidNotificationDetails(
+      'black_square_messages',
+      'Сообщения и звонки',
+      channelDescription: 'Уведомления о новых сообщениях и входящих звонках',
+      importance: Importance.high,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    );
+    const details = NotificationDetails(android: androidDetails);
+    await _localNotifications.show(
+      'msg_$from'.hashCode.abs() % 0x7FFFFFFF,
+      title,
+      body,
+      details,
+      payload: payload,
+    );
+  }
+
   Future<void> _showLocalNotification(RemoteMessage message) async {
     final data = message.data;
     final type = data['type'] ?? 'message';

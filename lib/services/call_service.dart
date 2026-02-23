@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'dart:io';
 
+import 'package:black_square/app_lifecycle.dart';
 import 'package:black_square/config.dart';
 import 'package:black_square/services/chat_service.dart';
 import 'package:black_square/services/websocket_service.dart';
@@ -333,6 +334,10 @@ class CallService extends ChangeNotifier {
             if (kDebugMode) debugPrint('CallService: auto-accept from launch intent');
             acceptCall();
           } else {
+            // В background — CallKit (полноэкранный звонок поверх других приложений)
+            if (Platform.isAndroid && appLifecycleNotifier.value != AppLifecycleState.resumed) {
+              _showCallKit(callId, initialName, from);
+            }
             // В foreground показываем наш CallScreen, CallKit не нужен
             _getRemoteName(from).then((nameFromChat) {
               if (_currentCall != null && _currentCall!.remoteUserId == from) {

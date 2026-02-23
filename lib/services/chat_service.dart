@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:black_square/app_lifecycle.dart';
 import 'package:black_square/config.dart';
 import 'package:black_square/models/chat.dart';
 import 'package:black_square/services/notification_service.dart';
@@ -294,6 +295,7 @@ class ChatService {
       ));
       _emitChatsUpdated();
       _incomingMessageController.add(placeholderMessage);
+      _maybeShowMessageNotification(chat, from, chatId);
 
       // Обработка файла в фоне
       _processAndUpdateFile(
@@ -335,6 +337,19 @@ class ChatService {
     ));
     _emitChatsUpdated();
     _incomingMessageController.add(message);
+    _maybeShowMessageNotification(chat, from, chatId);
+  }
+
+  void _maybeShowMessageNotification(Chat chat, String from, String chatId) {
+    if (appLifecycleNotifier.value == AppLifecycleState.resumed) return;
+    if (chatId == _currentChatId) return;
+    NotificationService().showMessageNotification(
+      from: from,
+      fromName: chat.name,
+      chatId: chat.id,
+    ).catchError((e) {
+      if (kDebugMode) debugPrint('ChatService: showMessageNotification error $e');
+    });
   }
 
   Future<void> _processAndUpdateFile({

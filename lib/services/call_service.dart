@@ -489,6 +489,9 @@ class CallService extends ChangeNotifier {
       await Helper.setSpeakerphoneOn(true);
 
       _peerConnection = await createPeerConnection(_iceServers);
+      if (_peerConnection == null) {
+        throw Exception('Не удалось создать соединение');
+      }
 
       final tracks = _localStream!.getTracks();
       if (tracks.isEmpty) {
@@ -533,12 +536,24 @@ class CallService extends ChangeNotifier {
         notifyListeners();
       };
 
-      final sdp = RTCSessionDescription(sdpMap['sdp'] as String, sdpMap['type'] as String);
+      final sdpStr = sdpMap['sdp'] as String?;
+      final sdpType = sdpMap['type'] as String?;
+      if (sdpStr == null || sdpType == null) {
+        throw Exception('Неверный формат SDP в offer');
+      }
+      final sdp = RTCSessionDescription(sdpStr, sdpType);
+
+      if (_peerConnection == null) {
+        throw Exception('Соединение было закрыто');
+      }
       await _peerConnection!.setRemoteDescription(sdp);
 
       final answer = await _peerConnection!.createAnswer({});
       await _peerConnection!.setLocalDescription(answer);
 
+      if (!_ws.isConnected) {
+        throw Exception('Соединение потеряно. Проверьте интернет.');
+      }
       _ws.send({
         'type': 'call-answer',
         'to': from,
@@ -564,7 +579,9 @@ class CallService extends ChangeNotifier {
     } catch (e, st) {
       _setError('Ошибка при приёме: ${e.toString()}');
       if (kDebugMode) debugPrint('CallService: handleOffer error $e\n$st');
-      _ws.send({'type': 'call-reject', 'to': from, 'callId': callId});
+      if (_ws.isConnected) {
+        _ws.send({'type': 'call-reject', 'to': from, 'callId': callId});
+      }
       _setState(CallState.ended);
       _cleanup();
     }

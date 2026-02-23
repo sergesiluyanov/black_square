@@ -479,26 +479,25 @@ class CallService extends ChangeNotifier {
             if (kDebugMode) debugPrint('CallService: auto-accept from launch intent');
             acceptCall();
           } else {
-            // В background — CallKit (полноэкранный звонок поверх других приложений)
-            if (Platform.isAndroid && appLifecycleNotifier.value != AppLifecycleState.resumed) {
-              _showCallKit(callId, initialName, fromId);
-            }
-            // В foreground показываем наш CallScreen, CallKit не нужен
+            // Сначала разрешаем имя из локальных контактов, потом показываем CallKit.
+            // getRemoteName читает из SharedPreferences (~1–5 мс) — задержка незаметна,
+            // зато CallKit сразу показывает правильное имя собеседника.
             _getRemoteName(fromId).then((nameFromChat) {
-              if (_currentCall != null && _currentCall!.remoteUserId == fromId) {
-                // Используем имя из чата только если это не userId (есть контакт).
-                // Иначе оставляем callerName из offer — имя звонящего.
-                final displayName = (nameFromChat != fromId && nameFromChat.isNotEmpty)
-                    ? nameFromChat
-                    : initialName;
-                _currentCall = CallInfo(
-                  callId: _currentCall!.callId,
-                  remoteUserId: fromId,
-                  remoteName: displayName,
-                  isIncoming: true,
-                );
-                notifyListeners();
+              if (_currentCall == null || _currentCall!.remoteUserId != fromId) return;
+              final displayName = (nameFromChat != fromId && nameFromChat.isNotEmpty)
+                  ? nameFromChat
+                  : initialName;
+              _currentCall = CallInfo(
+                callId: _currentCall!.callId,
+                remoteUserId: fromId,
+                remoteName: displayName,
+                isIncoming: true,
+              );
+              // В background — CallKit с правильным именем собеседника
+              if (Platform.isAndroid && appLifecycleNotifier.value != AppLifecycleState.resumed) {
+                _showCallKit(callId, displayName, fromId);
               }
+              notifyListeners();
             });
           }
         }

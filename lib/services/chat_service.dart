@@ -8,6 +8,7 @@ import 'package:black_square/config.dart';
 import 'package:black_square/models/chat.dart';
 import 'package:black_square/services/notification_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:black_square/models/message.dart';
 import 'package:black_square/services/encryption_service.dart';
 import 'package:black_square/services/storage_service.dart';

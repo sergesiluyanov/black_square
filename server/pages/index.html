@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kinescope Player</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        background: linear-gradient(
+          135deg,
+          #1a1a2e 0%,
+          #16213e 50%,
+          #0f3460 100%
+        );
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+
+      .player-container {
+        width: 100%;
+        max-width: 900px;
+        border-radius: 0px;
+        overflow: hidden;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      }
+
+      #player {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="player-container">
+      <!-- Плеер заменит <div> на <iframe> -->
+      <div id="player"></div>
+    </div>
+
+    <script>
+      // Асинхронно загружаем IFrame Player API
+      var tag = document.createElement("script");
+      tag.src = "https://player.kinescope.dev/v2.179.6/iframe.player.js";
+      var firstScriptTag = document.getElementsByTagName("script")[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+      // Эта функция создаст <iframe> (и Kinescope Player)
+      // Она будет вызвана автоматически когда скрипт API будет загружен
+      function onKinescopeIframeAPIReady(playerFactory) {
+        playerFactory
+          .create("player", {
+            url: "https://kinescope.dev/embed/7TRwrEUt694RtFyW31KYL7",
+            size: { width: "100%", height: "100%" },
+          })
+          .then(function (player) {
+            player
+              // Обработчик вызывается когда плеер загрузит необходимые данные
+              .once(player.Events.Loaded, function (event) {
+                event.target.setVolume(0.5);
+              });
+          });
+      }
+    </script>
+  </body>
+</html>

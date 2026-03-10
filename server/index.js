@@ -1,8 +1,8 @@
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { networkInterfaces } from 'os';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
-import { dirname, join } from 'path';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'fs';
+import { dirname, join, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerToken, sendMessagePush, sendCallPush, sendCancelPush, isPushEnabled } from './push.js';
 
@@ -18,6 +18,79 @@ function getLocalIp() {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
+const PAGES_DIR = join(__dirname, 'pages');
+
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css':  'text/css; charset=utf-8',
+  '.js':   'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png':  'image/png',
+  '.jpg':  'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif':  'image/gif',
+  '.svg':  'image/svg+xml',
+  '.ico':  'image/x-icon',
+  '.pdf':  'application/pdf',
+  '.txt':  'text/plain; charset=utf-8',
+  '.woff2':'font/woff2',
+  '.woff': 'font/woff',
+};
+
+function servePages(req, res) {
+  // Убираем query-string и нормализуем путь
+  const urlPath = req.url.split('?')[0].replace(/\.\./g, '');
+
+  // Корень → показываем список страниц
+  if (urlPath === '/') {
+    if (!existsSync(PAGES_DIR)) mkdirSync(PAGES_DIR, { recursive: true });
+    const files = readdirSync(PAGES_DIR).filter(f => {
+      try { return statSync(join(PAGES_DIR, f)).isFile(); } catch { return false; }
+    });
+    const items = files.map(f => `<li><a href="/${f}">${f}</a></li>`).join('\n        ');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Страницы</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; padding: 0 1.5rem; }
+    h1 { font-size: 1.4rem; margin-bottom: 1.5rem; }
+    ul { list-style: none; padding: 0; }
+    li { margin: .5rem 0; }
+    a { color: #0070f3; text-decoration: none; font-size: 1rem; }
+    a:hover { text-decoration: underline; }
+    p.empty { color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Список страниц</h1>
+  ${files.length ? `<ul>${items}</ul>` : '<p class="empty">Папка pages/ пустая. Добавьте .html файлы.</p>'}
+</body>
+</html>`);
+    return true;
+  }
+
+  // Попытка отдать файл из pages/
+  const filePath = join(PAGES_DIR, urlPath);
+  if (existsSync(filePath) && statSync(filePath).isFile()) {
+    const ext = extname(filePath).toLowerCase();
+    const mime = MIME_TYPES[ext] || 'application/octet-stream';
+    try {
+      const content = readFileSync(filePath);
+      res.writeHead(200, { 'Content-Type': mime });
+      res.end(content);
+    } catch {
+      res.writeHead(500);
+      res.end('Internal Server Error');
+    }
+    return true;
+  }
+
+  return false; // файл не найден — передаём управление дальше
+}
 const PENDING_FILE = join(__dirname, 'data', 'pending.json');
 const CONTACT_NAMES_FILE = join(__dirname, 'data', 'contact_names.json');
 
@@ -113,13 +186,17 @@ function getClientSet(userId) {
 }
 
 const server = createServer((req, res) => {
-  if (req.url === '/health' || req.url === '/') {
+  if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', service: 'black-square-server' }));
     return;
   }
+
+  // Статические страницы из pages/
+  if (servePages(req, res)) return;
+
   res.writeHead(404);
-  res.end();
+  res.end('Not Found');
 });
 
 const wss = new WebSocketServer({
